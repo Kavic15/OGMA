@@ -1,5 +1,6 @@
 from selenium import webdriver
 from selenium.webdriver.common.action_chains import ActionChains
+import random
 
 class BrowserController:
     def __init__(self, proxy=None, headless=True):

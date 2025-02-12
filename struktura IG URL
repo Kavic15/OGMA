@@ -1,0 +1,5 @@
+PROFILE:        https://www.instagram.com/PROFILE
+POST:           https://www.instagram.com/PROFILE/p/PostID/
+POST_multiIMG:  https://www.instagram.com/PROFILE/p/PostID/?img_index=1
+                https://www.instagram.com/PROFILE/p/PostID/?img_index=2
+POST_LIKED_BY:  https://www.instagram.com/p/PostID/liked_by/

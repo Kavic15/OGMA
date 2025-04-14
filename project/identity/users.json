@@ -1,0 +1,30 @@
+{
+  "users": [
+    {
+      "ID": 1,
+      "name": "Petr",
+      "surname": "Dvořák",
+      "email": "dvorak.petr9393@gmail.com",
+      "birth_date": "1993-08-18",
+      "social_media": {
+        "instagram": {
+          "username": "petrdvorak698",
+          "password": "PetrDvorak#1"
+        }
+      }
+    },
+    {
+      "ID": 2,
+      "name": "Jana",
+      "surname": "Nováková",
+      "email": "jana.novakova@gmail.com",
+      "birth_date": "1995-02-25",
+      "social_media": {
+        "instagram": {
+          "username": "jananovakova123",
+          "password": "JanaNovakova#1"
+        }
+      }
+    }
+  ]
+}

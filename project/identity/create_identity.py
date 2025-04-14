@@ -1,7 +1,7 @@
 import unicodedata
 import string
 import random
-from identity.add_identity import add_identitiy
+from add_identity import add_identitiy
 from czech_name_generator import generator
 
 def create_identity(iterations):

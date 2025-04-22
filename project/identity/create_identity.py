@@ -3,6 +3,7 @@ import string
 import random
 from add_identity import add_identitiy
 from czech_name_generator import generator
+import os
 
 def create_identity(iterations):
     for i in range(iterations):
@@ -41,11 +42,15 @@ def create_identity(iterations):
         password = ''.join(random.choices(all_chars, k=20))
         print(password)
 
+        current_dir = os.path.dirname(__file__)
+        json_path = os.path.join(current_dir, 'users.json')
+
         add_identitiy(
             name=name,
             surname=surname,
             birth_date=birth_date,
-            email=email,
+            email="",
             username=username,
-            password=password 
+            password=password,
+            filename=json_path 
         )

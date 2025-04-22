@@ -3,7 +3,7 @@ import json
 def add_identitiy(
         name, surname, email, birth_date,
         username, password,
-        filename='users.json'):
+        filename='identity.users.json'):
     # Load existing data from the JSON file
     try:
         with open(filename, 'r', encoding='utf-8') as f:

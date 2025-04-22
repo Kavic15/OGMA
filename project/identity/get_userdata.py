@@ -1,8 +1,12 @@
 import json
+import os
 
 def get_IG_username_by_ID(user_id):
     try:
-        with open('identity/users.json', 'r') as file:
+        current_dir = os.path.dirname(__file__)
+        json_path = os.path.join(current_dir, 'users.json')
+        
+        with open(json_path, 'r') as file:
             data = json.load(file)
     except FileNotFoundError:
         raise FileNotFoundError("The file users.json was not found.")
@@ -26,7 +30,10 @@ def get_IG_username_by_ID(user_id):
 
 def get_IG_password_by_ID(user_id):
     try:
-        with open('identity/users.json', 'r') as file:
+        current_dir = os.path.dirname(__file__)
+        json_path = os.path.join(current_dir, 'users.json')
+        
+        with open(json_path, 'r') as file:
             data = json.load(file)
     except FileNotFoundError:
         raise FileNotFoundError("The file users.json was not found.")

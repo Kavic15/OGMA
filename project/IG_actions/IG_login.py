@@ -1,6 +1,8 @@
 from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from utils.delay import delay
 import time
 
 def login_to_instagram(username, password):
@@ -9,39 +11,47 @@ def login_to_instagram(username, password):
     
     # Open Instagram's homepage
     driver.get("https://www.instagram.com/?hl=en")
-    time.sleep(3)
     
     try:
-        # Deny cookies
-        deny_cookies_button = driver.find_element(By.XPATH, "/html/body/div[3]/div[1]/div/div[2]/div/div/div/div/div[2]/div/button[2]")
+        # Wait for and deny cookies
+        deny_cookies_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Decline optional cookies')]"))
+        )
         deny_cookies_button.click()
-        time.sleep(3)
-    except:
-        pass
+    except Exception as e:
+        print("Cookies dialog not found or could not be clicked:", e)
+    
+    # Wait for login form to be present
+    WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located((By.NAME, "username"))
+    )
     
     # Enter username
-    print("Entering username: " + username)
-    username_input_box = driver.find_element(By.XPATH, "//*[@id=\"loginForm\"]/div[1]/div[1]/div/label/input")
-    username_input_box.send_keys(username)
-    time.sleep(1)
+    print("Entering username:", username)
+    username_input = driver.find_element(By.NAME, "username")
+    username_input.send_keys(username)
+    delay(1)
     
     # Enter password
-    print("Entering password: " + password)
-    password_input_box = driver.find_element(By.XPATH, "//*[@id=\"loginForm\"]/div[1]/div[2]/div/label/input")
-    password_input_box.send_keys(password)
-    time.sleep(1)
+    print("Entering password:", password)
+    password_input = driver.find_element(By.NAME, "password")
+    password_input.send_keys(password)
+    delay(1)
     
     # Click login button
-    login_button = driver.find_element(By.XPATH, "//*[@id=\"loginForm\"]/div[1]/div[3]/button")
+    login_button = driver.find_element(By.XPATH, "//button[@type='submit']")
     login_button.click()
-    time.sleep(5)
-
+    delay(1)
+    
+    # Handle post-login prompts (e.g., "Save Login Info" or "Turn on Notifications")
     try:
-        not_now_button = driver.find_element(By.XPATH, "/html/body/div[1]/div/div/div[2]/div/div/div[1]/div[1]/div[1]/section/main/div/div/div/div")
+        # Wait for "Not Now" button after login
+        not_now_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Not Now')]"))
+        )
         not_now_button.click()
-        time.sleep(5)
-    except:
-        pass
-
+    except Exception as e:
+        print("No post-login prompt found:", e)
+    
     # Return the driver instance for further actions
     return driver

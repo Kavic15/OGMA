@@ -1,4 +1,4 @@
-from gui.app import InstagramAutomationApp
+from gui.app import SocialMediaAutomationApp
 
 if __name__ == "__main__":
-    InstagramAutomationApp().mainloop()
+    SocialMediaAutomationApp().mainloop()

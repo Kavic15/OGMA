@@ -1,21 +1,20 @@
-from identity.get_userdata import get_IG_password_by_ID, get_IG_username_by_ID
-from .IG_login import login_to_instagram
-from .IG_scroll_reels import scroll_reels
-from .IG_multi_session import active_drivers, active_drivers_lock  # Import global tracker
+from identity.get_userdata import get_FB_password_by_ID, get_FB_username_by_ID
+from .FB_login import login_to_facebook
+from .FB_scroll_reels import scroll_reels
+from .FB_multi_session import active_drivers, active_drivers_lock  # Import global tracker
 
-def IG_user_behaviour(userid=0):
+def FB_user_behaviour(userid=0):
     try:
         # Fetch credentials
-        username = get_IG_username_by_ID(userid)
-        password = get_IG_password_by_ID(userid)
+        username = get_FB_username_by_ID(userid)
+        password = get_FB_password_by_ID(userid)
 
         # Login and add driver to global list
-        driver = login_to_instagram(username, password)
+        driver = login_to_facebook(username, password)
         with active_drivers_lock:
             active_drivers.append(driver)
 
         # Perform actions (e.g., scroll reels)
-        scroll_reels(driver)
 
     except Exception as e:
         print(f"Error for user {userid}: {e}")

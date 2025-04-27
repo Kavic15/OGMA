@@ -1,3 +1,4 @@
-from IG_actions.IG_user_behaviour import IG_user_behaviour
+from gui.app import InstagramAutomationApp
 
-IG_user_behaviour(userid=0)
+if __name__ == "__main__":
+    InstagramAutomationApp().mainloop()

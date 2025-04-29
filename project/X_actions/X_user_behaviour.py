@@ -1,7 +1,7 @@
 from identity.get_userdata import get_IG_password_by_ID, get_IG_username_by_ID
-from .IG_login import login_to_instagram
-from .IG_scroll_reels import scroll_reels
-from .IG_multi_session import active_drivers, active_drivers_lock  # Import global tracker
+from .X_login import login_to_instagram
+from .X_scroll_reels import scroll_reels
+from .X_multi_session import active_drivers, active_drivers_lock  # Import global tracker
 
 def IG_user_behaviour(userid=0):
     try:

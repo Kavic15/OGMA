@@ -1,57 +1,74 @@
+# FB_login.py
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from utils.mouse_actions import random_mouse_movement, human_typing
 from utils.delay import delay
+import sys
+import random
 import time
 
-def login_to_facebook(username, password):
-    # Set up the WebDriver
+def login_to_facebook(username, password, logger=None):
+    """Added logger parameter for logging callback"""
     driver = webdriver.Chrome()
     
-    # Open Instagram's homepage
+    def log(message):
+        if logger:
+            logger(message)
+        else:
+            print(message, file=sys.stdout)
+
     driver.get("https://www.facebook.com/?hl=en")
     
     try:
-        # Wait for and deny cookies
+        random_mouse_movement(driver, intensity=0.8)
+        
         deny_cookies_button = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Decline optional cookies')]"))
+            EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Odmítnout')]"))
         )
+        random_mouse_movement(driver, movements=2)
         deny_cookies_button.click()
+        log("Cookies dialog dismissed")
+        
     except Exception as e:
-        print("Cookies dialog not found or could not be clicked:", e)
+        log(f"Cookies dialog error: {str(e)}")
     
-    # Wait for login form to be present
-    WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.NAME, "username"))
-    )
-    
-    # Enter username
-    print("Entering username:", username)
-    username_input = driver.find_element(By.NAME, "username")
-    username_input.send_keys(username)
-    delay(1)
-    
-    # Enter password
-    print("Entering password:", password)
-    password_input = driver.find_element(By.NAME, "password")
-    password_input.send_keys(password)
-    delay(1)
-    
-    # Click login button
-    login_button = driver.find_element(By.XPATH, "//button[@type='submit']")
-    login_button.click()
-    delay(1)
-    
-    # Handle post-login prompts (e.g., "Save Login Info" or "Turn on Notifications")
     try:
-        # Wait for "Not Now" button after login
-        not_now_button = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Not Now')]"))
+        email_field = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.NAME, "email"))
         )
-        not_now_button.click()
+        
+        # Enter username with human-like behavior
+        log(f"Entering username: {username}")
+        random_mouse_movement(driver)
+        human_typing(email_field, username, driver)
+        delay(random.uniform(0.5, 1.2))
+        
+        # Enter password
+        log(f"Entering password: {'*' * len(password)}")
+        pass_field = driver.find_element(By.NAME, "pass")
+        random_mouse_movement(driver, intensity=1.2)
+        human_typing(pass_field, password, driver)
+        delay(random.uniform(0.8, 1.5))
+        
+        # Login with natural click
+        login_button = driver.find_element(By.XPATH, "//button[@type='submit']")
+        random_mouse_movement(driver, movements=1)
+        log("Login button clicked")
+        
+        # Post-login
+        try:
+            WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Not Now')]"))
+            ).click()
+            log("Dismissed post-login prompt")
+            random_mouse_movement(driver, intensity=0.5)
+        except Exception as e:
+            log(f"No post-login prompt: {str(e)}")
+            
     except Exception as e:
-        print("No post-login prompt found:", e)
+        log(f"Login failed: {str(e)}")
+        raise
     
-    # Return the driver instance for further actions
     return driver

@@ -7,12 +7,34 @@ from IG_actions.IG_user_behaviour import IG_user_behaviour
 from FB_actions.FB_multi_session import quit_all_sessions as quit_fb_sessions
 from FB_actions.FB_user_behaviour import FB_user_behaviour
 from .widgets import LogPanel
+import sys
+
+class LogRedirector:
+    def __init__(self, app, log_panel):
+        self.app = app
+        self.log_panel = log_panel
+        self.buffer = ''
+
+    def write(self, message):
+        self.buffer += message
+        if '\n' in self.buffer:
+            lines = self.buffer.split('\n')
+            for line in lines[:-1]:
+                if line.strip():
+                    # Schedule log update in main thread
+                    self.app.after(0, self.log_panel.log, line)
+            self.buffer = lines[-1]
+
+    def flush(self):
+        if self.buffer.strip():
+            self.app.after(0, self.log_panel.log, self.buffer)
+            self.buffer = ''
 
 class SocialMediaAutomationApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Social Media Multi-Platform Automation")
-        self.geometry("800x600")
+        self.geometry("700x1500")
         
         # Track users and threads
         self.users = []  # List of tuples (user_id, platform)
@@ -111,14 +133,18 @@ class SocialMediaAutomationApp(tk.Tk):
 
     def _run_user_automation(self, user_id, platform):
         try:
+            # Create a logger that writes to the log panel
+            def thread_logger(message):
+                self.log_panel.log(f"[{platform} - {user_id}] {message}")
+                
             if platform == "Instagram":
-                IG_user_behaviour(user_id)
+                IG_user_behaviour(user_id, logger=thread_logger)
             elif platform == "Facebook":
-                FB_user_behaviour(user_id)
+                FB_user_behaviour(user_id, logger=thread_logger)
             elif platform == "X (in progress)":
                 self.log_panel.log(f"X platform automation is in progress.")
         except Exception as e:
-            self.log_panel.log(f"Error ({platform} - {user_id}): {str(e)}")
+            self.log_panel.log(f"Critical Error ({platform} - {user_id}): {str(e)}")
 
     def stop_automation(self):
         # Terminate all sessions for both platforms
@@ -136,6 +162,12 @@ class SocialMediaAutomationApp(tk.Tk):
 
     def on_close(self):
         self.stop_automation()
+        # Flush any remaining messages
+        sys.stdout.flush()
+        sys.stderr.flush()
+        # Restore original stdout/stderr
+        sys.stdout = self.original_stdout
+        sys.stderr = self.original_stderr
         self.destroy()
 
 if __name__ == "__main__":

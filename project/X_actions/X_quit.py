@@ -1,7 +1,7 @@
 from selenium import webdriver
 
-def quit_instagram(driver: webdriver.Chrome, verbose: bool = True) -> None:
-    """Gracefully close the Instagram browser session"""
+def quit_x(driver: webdriver.Chrome, verbose: bool = True) -> None:
+    """Gracefully close the X browser session"""
     if driver is not None:
         try:
             driver.quit()

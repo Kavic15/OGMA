@@ -1,7 +1,7 @@
 import time
 import random
 
-def delay(base_delay: float):
+def delay(base_delay: float) -> None:
     """
     Delays execution for a time randomly varied by ±1 second from the base delay.
 

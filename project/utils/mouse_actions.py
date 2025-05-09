@@ -2,6 +2,7 @@
 from selenium.webdriver.common.action_chains import ActionChains
 import random
 import time
+from selenium.webdriver.common.keys import Keys
 from .delay import delay
 
 def random_mouse_movement(driver, movements=4, intensity=1.0):
@@ -61,24 +62,21 @@ def human_typing(element, text, driver=None):
     - driver: Optional WebDriver for combined mouse+typing
     """
     try:
-        # Focus on element
         if driver:
             actions = ActionChains(driver)
             actions.move_to_element(element).pause(0.2).click().perform()
             time.sleep(0.3)
         
-        # Type with random delays and occasional corrections
         for i, char in enumerate(text):
             element.send_keys(char)
-            delay = random.uniform(0.05, 0.18)
+            # Rename 'delay' variable to 'pause_duration'
+            pause_duration = random.uniform(0.05, 0.18)  # Changed name
             
-            # Random longer pause every 3-5 characters
             if i % random.randint(3, 5) == 0:
-                delay += random.uniform(0.1, 0.3)
+                pause_duration += random.uniform(0.1, 0.3)
             
-            time.sleep(delay)
+            time.sleep(pause_duration)  # Use renamed variable
             
-            # Random backspace chance (5%)
             if random.random() < 0.05:
                 element.send_keys(Keys.BACKSPACE)
                 time.sleep(random.uniform(0.2, 0.4))
@@ -86,4 +84,6 @@ def human_typing(element, text, driver=None):
                 time.sleep(random.uniform(0.1, 0.2))
     
     except Exception as e:
-        element.send_keys(text)  # Fallback
+        print(f"Typing error: {e}")
+        delay(10)
+        # element.send_keys(text)  # Fallback

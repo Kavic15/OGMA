@@ -7,6 +7,63 @@ from selenium.webdriver.support import expected_conditions as EC
 from urllib.parse import urljoin
 import re
 
+def scrape_comments(driver, logger=None):
+    """Scrape comments while excluding post description"""
+    try:
+        if logger:
+            logger("Scraping comments...")
+
+        comments = []
+        
+        # Target ONLY the comments section (not the main post)
+        comments_section = WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located((By.XPATH, 
+                "//div[@role='dialog']//ul[contains(@class, '_a9z6')]"
+            ))
+        )
+
+        # Find individual comment elements
+        comment_elements = comments_section.find_elements(By.XPATH,
+            ".//div[contains(@class, '_a9zr') and .//span[@dir='auto']"
+        )
+
+        for comment in comment_elements:
+            try:
+                # Extract username from specific nested element
+                username_element = comment.find_element(By.XPATH,
+                    ".//div[contains(@class, 'x9f619')]/a[contains(@class, 'x1i10hfl')]"
+                )
+                username = username_element.text.strip()
+                profile_url = username_element.get_attribute('href')
+
+                # Extract comment text from specific span
+                text_element = comment.find_element(By.XPATH,
+                    ".//span[contains(@class, '_ap3a') and @dir='auto']"
+                )
+                comment_text = text_element.text.strip()
+
+                comments.append({
+                    "username": username,
+                    "profile_url": profile_url,
+                    "text": comment_text
+                })
+
+            except Exception as e:
+                if logger:
+                    logger(f"Skipping invalid comment: {str(e)}")
+                continue
+
+        if logger:
+            logger(f"Found {len(comments)} valid comments")
+
+        return comments
+
+    except Exception as e:
+        if logger:
+            logger(f"Comment scraping failed: {str(e)}")
+        return []
+    
+    
 def find_and_click_first_post(driver, logger=None):
     """Check for posts in search results and click the first one"""
     try:
@@ -64,7 +121,8 @@ def save_to_json(data, account_name):
             "post_description": data["description"],
             "hashtags": data["hashtags"],
             "mentions": data["mentions"],
-            "full_text": data["full_text"]
+            "full_text": data["full_text"],
+            "comments": data["comments"]
         }
         
         existing_data.append(entry)
@@ -133,11 +191,15 @@ def scrape_post_description(driver, logger=None):
         print(f"Mentions: {mentions}")
         print(f"Full text: {full_text}")
         
+        # Scrape comments
+        comments = scrape_comments(driver, logger=logger)
+        
         data = {
             "description": clean_description,
             "hashtags": hashtags,
             "mentions": mentions,
-            "full_text": full_text
+            "full_text": full_text,
+            "comments": comments  # Add comments to data
         }
         
         # Save to JSON

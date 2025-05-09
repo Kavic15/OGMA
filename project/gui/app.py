@@ -6,6 +6,8 @@ from IG_actions.IG_multi_session import quit_all_sessions as quit_ig_sessions
 from IG_actions.IG_user_behaviour import IG_user_behaviour
 from FB_actions.FB_multi_session import quit_all_sessions as quit_fb_sessions
 from FB_actions.FB_user_behaviour import FB_user_behaviour
+from X_actions.X_multi_session import quit_all_sessions as quit_x_sessions
+from X_actions.X_user_behaviour import X_user_behaviour
 from .widgets import LogPanel
 import sys
 
@@ -34,7 +36,7 @@ class SocialMediaAutomationApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Social Media Multi-Platform Automation")
-        self.geometry("700x1500")
+        self.geometry("600x1000")
         
         # Track users and threads
         self.users = []  # List of tuples (user_id, platform)
@@ -142,7 +144,7 @@ class SocialMediaAutomationApp(tk.Tk):
             elif platform == "Facebook":
                 FB_user_behaviour(user_id, logger=thread_logger)
             elif platform == "X (in progress)":
-                self.log_panel.log(f"X platform automation is in progress.")
+                X_user_behaviour(user_id, logger=thread_logger)
         except Exception as e:
             self.log_panel.log(f"Critical Error ({platform} - {user_id}): {str(e)}")
 
@@ -150,11 +152,12 @@ class SocialMediaAutomationApp(tk.Tk):
         # Terminate all sessions for both platforms
         quit_ig_sessions()
         quit_fb_sessions()
+        quit_x_sessions()
         
         # Update UI
         self.btn_start.config(state=tk.NORMAL)
         self.btn_stop.config(state=tk.DISABLED)
-        self.log_panel.log("All sessions terminated across both platforms")
+        self.log_panel.log("All sessions terminated across all platforms")
         
         # Clear queues
         self.threads = []

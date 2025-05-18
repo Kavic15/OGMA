@@ -9,9 +9,13 @@ from selenium.webdriver.common.action_chains import ActionChains
 from utils.log import log
 import keyboard
 
-def X_user_behaviour(userid=0):
+def X_user_behaviour(userid=0, target_accounts=None, max_posts=50):
     driver = None
     try:
+        if not target_accounts:
+            log("No target accounts specified!", tag="X ERROR")
+            return
+
         # Log session start
         log(f"Starting X session for user {userid}", tag="X")
         
@@ -29,15 +33,20 @@ def X_user_behaviour(userid=0):
             active_drivers.append(driver)
             log(f"Active X sessions: {len(active_drivers)}", tag="X SESSIONS")
 
-        # Search workflow
-        target_account = "donald trump"
-        log(f"Starting search for account: {target_account}", tag="X SEARCH")
-        search_for_account(driver, search_query=target_account)
-        delay(3)
-        scrape_and_save_tweets(driver)
-
-        # DEBUG
-        keyboard.wait('ctrl+q')
+        # Process each target account
+        for target_account in target_accounts:
+            try:
+                log(f"Starting search for account: {target_account}", tag="X SEARCH")
+                search_for_account(driver, search_query=target_account)
+                delay(3)
+                scrape_and_save_tweets(driver, max_posts=max_posts)
+                
+                # Reset for next account
+                driver.get("https://x.com/")
+                delay(3)
+            except Exception as e:
+                log(f"Failed to process {target_account}: {str(e)}", tag="X ERROR")
+                continue
 
     except Exception as e:
         error_msg = f"Operation failed: {str(e)}"

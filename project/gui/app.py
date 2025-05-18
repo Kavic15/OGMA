@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, scrolledtext
 import threading
 import keyboard
 import sys
@@ -9,29 +9,25 @@ from FB_actions.FB_multi_session import quit_all_sessions as quit_fb_sessions
 from FB_actions.FB_user_behaviour import FB_user_behaviour
 from X_actions.X_multi_session import quit_all_sessions as quit_x_sessions
 from X_actions.X_user_behaviour import X_user_behaviour
-from tkinter import scrolledtext
 from .widgets import LogPanel
 from utils.log import Logger, log
-import sys
 import os
-# Add current directory to Python path
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
 class SocialMediaAutomationApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Social Media Multi-Platform Automation")
-        self.geometry("600x1000")
-        self.target_accounts = []
-        self.tweet_count = 50
+        self.geometry("750x1000")
         
         # Initialize logger early
         self.log_panel = LogPanel(self)
         Logger.initialize(self, self.log_panel)
         
         # Track users and threads
-        self.users = []  # List of tuples (user_id, platform)
+        self.users = []
         self.threads = []
+        self.target_accounts = []
+        self.tweet_count = 50
         
         # Build GUI
         self._create_widgets()
@@ -66,6 +62,27 @@ class SocialMediaAutomationApp(tk.Tk):
         )
         self.btn_add.pack(side=tk.LEFT, padx=5)
 
+        # Scrape Settings Section
+        self.scrape_frame = ttk.LabelFrame(self, text="Scrape Settings (X only)")
+        self.scrape_frame.pack(pady=10, padx=10, fill=tk.BOTH)
+        
+        # Target Accounts Input
+        ttk.Label(self.scrape_frame, text="Target Accounts (one per line):").pack(anchor=tk.W)
+        self.targets_entry = scrolledtext.ScrolledText(self.scrape_frame, height=4)
+        self.targets_entry.pack(fill=tk.X, padx=5, pady=5)
+        
+        # Tweet Count Input
+        ttk.Label(self.scrape_frame, text="Number of Tweets per Account:").pack(anchor=tk.W)
+        self.tweet_count_var = tk.IntVar(value=50)
+        self.tweet_spin = ttk.Spinbox(
+            self.scrape_frame,
+            from_=1,
+            to=1000,
+            textvariable=self.tweet_count_var,
+            width=5
+        )
+        self.tweet_spin.pack(anchor=tk.W, padx=5, pady=5)
+
         # Start/Stop Controls
         self.control_frame = ttk.Frame(self)
         self.control_frame.pack(pady=10)
@@ -86,26 +103,6 @@ class SocialMediaAutomationApp(tk.Tk):
         
         # Logs
         self.log_panel.pack(pady=10, padx=10, fill=tk.BOTH, expand=True)
-
-        self.scrape_frame = ttk.LabelFrame(self, text="Scrape Settings (X only)")
-        self.scrape_frame.pack(pady=10, padx=10, fill=tk.BOTH)
-        
-        # Target Accounts Input
-        ttk.Label(self.scrape_frame, text="Target Accounts (one per line):").pack(anchor=tk.W)
-        self.targets_entry = scrolledtext.ScrolledText(self.scrape_frame, height=4)
-        self.targets_entry.pack(fill=tk.X, padx=5, pady=5)
-        
-        # Tweet Count Input
-        ttk.Label(self.scrape_frame, text="Number of Tweets per Account:").pack(anchor=tk.W)
-        self.tweet_count_var = tk.IntVar(value=50)
-        self.tweet_spin = ttk.Spinbox(
-            self.scrape_frame,
-            from_=1,
-            to=1000,
-            textvariable=self.tweet_count_var,
-            width=5
-        )
-        self.tweet_spin.pack(anchor=tk.W, padx=5, pady=5)
 
     def _bind_hotkeys(self):
         keyboard.add_hotkey("ctrl+q", self.stop_automation)
@@ -147,20 +144,38 @@ class SocialMediaAutomationApp(tk.Tk):
             log("No users added!", tag="ERROR")
             return
         
+        self.target_accounts = [
+            line.strip() for line in 
+            self.targets_entry.get("1.0", tk.END).splitlines() 
+            if line.strip()
+        ]
+        if not self.target_accounts:
+            log("No target accounts specified!", tag="ERROR")
+            return
+            
+        try:
+            self.tweet_count = int(self.tweet_count_var.get())
+        except ValueError:
+            log("Invalid tweet count!", tag="ERROR")
+            return
+
         self.btn_start.config(state=tk.DISABLED)
         self.btn_stop.config(state=tk.NORMAL)
         
         for user_id, platform in self.users:
-            thread = threading.Thread(
-                target=self._run_user_automation,
-                args=(user_id, platform),
-                daemon=True
-            )
+            thread_args = {
+                'target': self._run_user_automation,
+                'args': (user_id, platform),
+            }
+            if platform == "X":
+                thread_args['args'] += (self.target_accounts, self.tweet_count)
+                
+            thread = threading.Thread(**thread_args, daemon=True)
             thread.start()
             self.threads.append(thread)
             log(f"Started {platform} automation for: {user_id}", tag="SYSTEM")
 
-    def _run_user_automation(self, user_id, platform):
+    def _run_user_automation(self, user_id, platform, target_accounts=None, tweet_count=50):
         try:
             tag = f"{platform.upper()} - {user_id}"
             
@@ -169,7 +184,7 @@ class SocialMediaAutomationApp(tk.Tk):
             elif platform == "Facebook (inactive)":
                 FB_user_behaviour(user_id)
             elif platform == "X":
-                X_user_behaviour(user_id)
+                X_user_behaviour(user_id, target_accounts, tweet_count)
                 
             log(f"Completed successfully", tag=tag)
         except Exception as e:

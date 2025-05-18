@@ -1,76 +1,65 @@
 from identity.get_userdata import get_X_password_by_ID, get_X_username_by_ID
 from .X_login import login_to_x
 from .X_search import search_for_account
+from .X_scrape import scrape_and_save_tweets
 from utils.delay import delay
 from .X_multi_session import active_drivers, active_drivers_lock
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.action_chains import ActionChains
+from utils.log import log
 import keyboard
 
-def X_user_behaviour(userid=0, logger=None):
+def X_user_behaviour(userid=0):
     driver = None
     try:
         # Log session start
-        if logger:
-            logger(f"Starting X session for user {userid}")
+        log(f"Starting X session for user {userid}", tag="X")
         
         # Fetch credentials
         username = get_X_username_by_ID(userid)
         password = get_X_password_by_ID(userid)
-        if logger:
-            logger(f"Retrieved credentials for username: {username}")
-            logger("Attempting login...")
+        log(f"Retrieved credentials for username: {username}", tag="X")
+        log("Attempting login...", tag="X")
 
         # Login and add driver to global list
         driver = login_to_x(username, password, userid)
-        if logger:
-            logger("Login successful")
+        log("Login successful", tag="X")
         
         with active_drivers_lock:
             active_drivers.append(driver)
-            if logger:
-                logger(f"Active X sessions: {len(active_drivers)}")
-        
-        # DEBUG
-        # keyboard.wait('ctrl+q')
+            log(f"Active X sessions: {len(active_drivers)}", tag="X SESSIONS")
 
         # Search workflow
-        target_account = "prima"  # Replace with dynamic value if needed
-        if logger:
-            logger(f"Starting search for account: {target_account}")
-        
-        search_for_account(driver, search_query=target_account, logger=logger)
-        
+        target_account = "donald trump"
+        log(f"Starting search for account: {target_account}", tag="X SEARCH")
+        search_for_account(driver, search_query=target_account)
+        delay(3)
+        scrape_and_save_tweets(driver)
+
+        # DEBUG
         keyboard.wait('ctrl+q')
 
     except Exception as e:
-        error_msg = f"X error (User {userid}): {str(e)}"
-        if logger:
-            logger(error_msg)
+        error_msg = f"Operation failed: {str(e)}"
+        log(error_msg, tag="X ERROR")
         raise
 
     finally:
         # Cleanup
         if driver:
-            if logger:
-                logger("Cleaning up X browser instance")
+            log("Cleaning up X browser instance", tag="X CLEANUP")
             
             with active_drivers_lock:
                 if driver in active_drivers:
                     active_drivers.remove(driver)
-                    if logger:
-                        logger(f"Remaining X sessions: {len(active_drivers)}")
+                    log(f"Remaining X sessions: {len(active_drivers)}", tag="X SESSIONS")
             
             try:
                 driver.quit()
-                if logger:
-                    logger("X browser closed successfully")
+                log("X browser closed successfully", tag="X CLEANUP")
             except Exception as e:
-                error_msg = f"Error closing X browser: {str(e)}"
-                if logger:
-                    logger(error_msg)
+                error_msg = f"Error closing browser: {str(e)}"
+                log(error_msg, tag="X ERROR")
 
-    if logger:
-        logger(f"Completed X session for user {userid}")
-    
+    log(f"Completed X session for user {userid}", tag="X")
     return driver

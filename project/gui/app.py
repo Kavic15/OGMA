@@ -2,41 +2,32 @@ import tkinter as tk
 from tkinter import ttk
 import threading
 import keyboard
+import sys
 from IG_actions.IG_multi_session import quit_all_sessions as quit_ig_sessions
 from IG_actions.IG_user_behaviour import IG_user_behaviour
 from FB_actions.FB_multi_session import quit_all_sessions as quit_fb_sessions
 from FB_actions.FB_user_behaviour import FB_user_behaviour
 from X_actions.X_multi_session import quit_all_sessions as quit_x_sessions
 from X_actions.X_user_behaviour import X_user_behaviour
+from tkinter import scrolledtext
 from .widgets import LogPanel
+from utils.log import Logger, log
 import sys
-
-class LogRedirector:
-    def __init__(self, app, log_panel):
-        self.app = app
-        self.log_panel = log_panel
-        self.buffer = ''
-
-    def write(self, message):
-        self.buffer += message
-        if '\n' in self.buffer:
-            lines = self.buffer.split('\n')
-            for line in lines[:-1]:
-                if line.strip():
-                    # Schedule log update in main thread
-                    self.app.after(0, self.log_panel.log, line)
-            self.buffer = lines[-1]
-
-    def flush(self):
-        if self.buffer.strip():
-            self.app.after(0, self.log_panel.log, self.buffer)
-            self.buffer = ''
+import os
+# Add current directory to Python path
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
 class SocialMediaAutomationApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Social Media Multi-Platform Automation")
         self.geometry("600x1000")
+        self.target_accounts = []
+        self.tweet_count = 50
+        
+        # Initialize logger early
+        self.log_panel = LogPanel(self)
+        Logger.initialize(self, self.log_panel)
         
         # Track users and threads
         self.users = []  # List of tuples (user_id, platform)
@@ -45,6 +36,7 @@ class SocialMediaAutomationApp(tk.Tk):
         # Build GUI
         self._create_widgets()
         self._bind_hotkeys()
+        self._setup_std_redirect()
 
     def _create_widgets(self):
         # User Input Section
@@ -56,7 +48,7 @@ class SocialMediaAutomationApp(tk.Tk):
         self.platform_combo = ttk.Combobox(
             self.input_frame,
             textvariable=self.platform_var,
-            values=["Instagram", "Facebook", "X (in progress)"],
+            values=["Instagram", "Facebook (inactive)", "X"],
             state="readonly",
             width=10
         )
@@ -93,32 +85,66 @@ class SocialMediaAutomationApp(tk.Tk):
         self.btn_stop.pack(side=tk.LEFT, padx=5)
         
         # Logs
-        self.log_panel = LogPanel(self)
         self.log_panel.pack(pady=10, padx=10, fill=tk.BOTH, expand=True)
+
+        self.scrape_frame = ttk.LabelFrame(self, text="Scrape Settings (X only)")
+        self.scrape_frame.pack(pady=10, padx=10, fill=tk.BOTH)
+        
+        # Target Accounts Input
+        ttk.Label(self.scrape_frame, text="Target Accounts (one per line):").pack(anchor=tk.W)
+        self.targets_entry = scrolledtext.ScrolledText(self.scrape_frame, height=4)
+        self.targets_entry.pack(fill=tk.X, padx=5, pady=5)
+        
+        # Tweet Count Input
+        ttk.Label(self.scrape_frame, text="Number of Tweets per Account:").pack(anchor=tk.W)
+        self.tweet_count_var = tk.IntVar(value=50)
+        self.tweet_spin = ttk.Spinbox(
+            self.scrape_frame,
+            from_=1,
+            to=1000,
+            textvariable=self.tweet_count_var,
+            width=5
+        )
+        self.tweet_spin.pack(anchor=tk.W, padx=5, pady=5)
 
     def _bind_hotkeys(self):
         keyboard.add_hotkey("ctrl+q", self.stop_automation)
+
+    def _setup_std_redirect(self):
+        class LogRedirector:
+            def __init__(self, original_stream):
+                self.original_stream = original_stream
+
+            def write(self, message):
+                if message.strip():
+                    log(message.strip(), tag="SYSTEM")
+                self.original_stream.write(message)
+
+            def flush(self):
+                self.original_stream.flush()
+
+        sys.stdout = LogRedirector(sys.stdout)
+        sys.stderr = LogRedirector(sys.stderr)
 
     def _add_user_handler(self):
         user_id = self.user_entry.get()
         platform = self.platform_var.get()
         if user_id:
             try:
-                # Convert to integer and validate
                 user_id = int(user_id)
                 self.add_user(user_id, platform)
                 self.user_entry.delete(0, tk.END)
             except ValueError:
-                self.log_panel.log(f"Error: Invalid user ID '{user_id}' - must be a number!")
+                log(f"Invalid user ID '{user_id}' - must be a number!", tag="ERROR")
 
     def add_user(self, user_id, platform):
         if (user_id, platform) not in self.users:
             self.users.append((user_id, platform))
-            self.log_panel.log(f"Added {platform} User: {user_id}")
+            log(f"Added {platform} User: {user_id}", tag="USER MGMT")
 
     def start_automation(self):
         if not self.users:
-            self.log_panel.log("Error: No users added!")
+            log("No users added!", tag="ERROR")
             return
         
         self.btn_start.config(state=tk.DISABLED)
@@ -127,50 +153,44 @@ class SocialMediaAutomationApp(tk.Tk):
         for user_id, platform in self.users:
             thread = threading.Thread(
                 target=self._run_user_automation,
-                args=(user_id, platform)
+                args=(user_id, platform),
+                daemon=True
             )
             thread.start()
             self.threads.append(thread)
-            self.log_panel.log(f"Started {platform} automation for: {user_id}")
+            log(f"Started {platform} automation for: {user_id}", tag="SYSTEM")
 
     def _run_user_automation(self, user_id, platform):
         try:
-            # Create a logger that writes to the log panel
-            def thread_logger(message):
-                self.log_panel.log(f"[{platform} - {user_id}] {message}")
-                
+            tag = f"{platform.upper()} - {user_id}"
+            
             if platform == "Instagram":
-                IG_user_behaviour(user_id, logger=thread_logger)
-            elif platform == "Facebook":
-                FB_user_behaviour(user_id, logger=thread_logger)
-            elif platform == "X (in progress)":
-                X_user_behaviour(user_id, logger=thread_logger)
+                IG_user_behaviour(user_id)
+            elif platform == "Facebook (inactive)":
+                FB_user_behaviour(user_id)
+            elif platform == "X":
+                X_user_behaviour(user_id)
+                
+            log(f"Completed successfully", tag=tag)
         except Exception as e:
-            self.log_panel.log(f"Critical Error ({platform} - {user_id}): {str(e)}")
+            log(f"Critical Error: {str(e)}", tag=f"ERROR/{tag}")
 
     def stop_automation(self):
-        # Terminate all sessions for both platforms
         quit_ig_sessions()
         quit_fb_sessions()
         quit_x_sessions()
         
-        # Update UI
         self.btn_start.config(state=tk.NORMAL)
         self.btn_stop.config(state=tk.DISABLED)
-        self.log_panel.log("All sessions terminated across all platforms")
+        log("All sessions terminated", tag="SYSTEM")
         
-        # Clear queues
         self.threads = []
         self.users = []
 
     def on_close(self):
         self.stop_automation()
-        # Flush any remaining messages
         sys.stdout.flush()
         sys.stderr.flush()
-        # Restore original stdout/stderr
-        sys.stdout = self.original_stdout
-        sys.stderr = self.original_stderr
         self.destroy()
 
 if __name__ == "__main__":

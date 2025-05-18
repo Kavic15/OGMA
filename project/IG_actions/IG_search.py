@@ -1,71 +1,79 @@
+# X_search.py
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from utils.delay import delay
-
+from utils.mouse_actions import human_typing, random_mouse_movement
 import time
 
 def search_for_account(driver, search_query, logger=None):
+    def log(*messages):
+        message = " ".join(str(m) for m in messages)
+        if logger:
+            logger(message)
+        else:
+            print(message)
+
     try:
-        # Search button interaction
-        if logger:
-            logger("Locating search button...")
-        else:
-            print("Finding search input...")
-            
-        search_button = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "/html/body/div[1]/div/div/div[2]/div/div/div[1]/div[1]/div[2]/div/div/div/div/div[2]/div[2]/span/div/a/div"))
-        )
-        search_button.click()
-        if logger:
-            logger("Search button clicked")
-
-        # Search input handling
-        if logger:
-            logger(f"Typing search query: {search_query}")
-        else:
-            print("Typing search_query...")
-            
-        search_input = driver.find_element(By.XPATH, "/html/body/div[1]/div/div/div[2]/div/div/div[1]/div[1]/div[2]/div/div/div[2]/div/div/div/div[2]/div/div/div[1]/div/div/input")
-        search_input.send_keys(search_query)
-        
-        if logger:
-            logger("Waiting for search results...")
-        delay(5)
-
-        # Account selection
-        # Account selection with improved locator
-        if logger:
-            logger(f"Attempting to select account: {search_query}")
-            
+        # Navigate to explore
+        log("Accessing search functionality...")
         try:
-            # More robust XPath that matches partial text and checks href
+            driver.get("https://x.com/explore")
+            delay(2)
+        except Exception as e:
+            log("Couldn't navigate directly to explore:", e)
+            raise
+
+        # Find and activate search input using placeholder
+        log("Locating search input...")
+        search_input = WebDriverWait(driver, 15).until(
+            EC.element_to_be_clickable((By.XPATH, "//input[@placeholder='Search']"))
+        )
+        
+        # Human-like interaction sequence
+        random_mouse_movement(driver, intensity=0.7)
+        for _ in range(2):  # Double click to simulate real user
+            search_input.click()
+            delay(0.3)
+        
+        # Type search query
+        log(f"Searching for: {search_query}")
+        human_typing(search_input, search_query, driver)
+        delay(1.5)  # Wait for results to populate
+
+        # Account selection with improved matching
+        log(f"Selecting account: {search_query}")
+        try:
+            # Case-insensitive match with partial text
             account_xpath = (
-                f"//a[contains(@href, '{search_query.lower()}')]//"  # Check profile link
-                f"span[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), "  # Case-insensitive
-                f"'{search_query.lower()}')]"  # Partial text match
+                f"//div[@data-testid='TypeaheadUser']//"
+                f"span[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÀÈÌÒÙÄËÏÖÜ', 'abcdefghijklmnopqrstuvwxyzáéíóúàèìòùäëïöü'), "
+                f"'{search_query.lower()}')]"
             )
-            
-            account = WebDriverWait(driver, 15).until(
+            account = WebDriverWait(driver, 10).until(
                 EC.element_to_be_clickable((By.XPATH, account_xpath))
             )
+            random_mouse_movement(driver, intensity=0.9)
             account.click()
-            
         except Exception as e:
-            # Fallback to original selector with exact match
-            if logger:
-                logger("Trying fallback selector...")
+            log("Primary selection failed, trying username match...")
+            # Fallback to @username match
             account = WebDriverWait(driver, 5).until(
-                EC.element_to_be_clickable((By.XPATH, f"//span[text()='{search_query}']/ancestor::a"))
+                EC.element_to_be_clickable((By.XPATH, f"//span[contains(text(), '@{search_query.lower()}')]"))
             )
             account.click()
-        
+
+        # Verify navigation to profile
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'Follow')]"))
+        )
+        delay(2)
+        log("Successfully navigated to profile")
+
         return driver
 
     except Exception as e:
         error_msg = f"Search failed: {str(e)}"
-        if logger:
-            logger(error_msg)
-        else:
-            print(error_msg)
+        log(error_msg)
+        driver.save_screenshot("x_search_error.png")
         raise

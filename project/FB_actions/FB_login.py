@@ -43,14 +43,14 @@ def login_to_facebook(username, password, logger=None):
         log(f"Entering username: {username}")
         random_mouse_movement(driver)
         human_typing(email_field, username, driver)
-        delay(random.uniform(0.5, 1.2))
+        delay(random.uniform(0.5, 1.2), logger=logger)
         
         # Enter password
         log(f"Entering password: {'*' * len(password)}")
         pass_field = driver.find_element(By.NAME, "pass")
         random_mouse_movement(driver, intensity=1.2)
         human_typing(pass_field, password, driver)
-        delay(random.uniform(0.8, 1.5))
+        delay(random.uniform(0.8, 1.5), logger=logger)
         
         # Login with natural click
         login_button = driver.find_element(By.XPATH, "//button[@type='submit']")

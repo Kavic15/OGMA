@@ -6,9 +6,11 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
 from utils.delay import delay
 from utils.mouse_actions import human_typing, random_mouse_movement
 from identity.get_userdata import get_user_email
+from utils.log import log
 import time
 
 def get_X_credentials(user_id):
@@ -38,101 +40,109 @@ def get_X_credentials(user_id):
     }
 
 def login_to_x(username, password, user_id):
-    """Enhanced login function with human-like interactions"""
-    # Retrieve credentials
-    try:
-        email = get_user_email(user_id)
-    except Exception as e:
-        print(f"Error retrieving credentials: {e}")
-        return
-
-    # Set up WebDriver
+    """Handles multiple verification steps dynamically"""
     driver = webdriver.Chrome()
+    email = get_user_email(user_id)
     
     try:
-        # Open X homepage
         driver.get("https://x.com/?hl=en")
-        random_mouse_movement(driver)
-        delay(2)
-
-        # Handle cookies
-        try:
-            deny_cookies = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Refuse non-essential cookies')]"))
-            )
-            deny_cookies.click()
-            random_mouse_movement(driver)
-            delay(1)
-        except Exception as e:
-            print("Cookie handling skipped:", e)
-
+        handle_cookies(driver)
+        
         # Initiate login
-        try:
-            login_btn = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.XPATH, "//a[@data-testid='loginButton']"))
-            )
-            random_mouse_movement(driver)
-            login_btn.click()
-            delay(1)
-        except Exception as e:
-            print("Login initiation failed:", e)
-            raise
+        WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, "//a[@data-testid='loginButton']"))
+        ).click()
 
-        # Username entry
-        try:
-            username_field = WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.NAME, "text"))
-            )
-            human_typing(username_field, username, driver)
-            delay(1)
-            username_field.send_keys(Keys.RETURN)
-            #username_field.send_keys(Keys.RETURN) # Instant typing
-            random_mouse_movement(driver)
-            delay(2)
-        except Exception as e:
-            print("Username entry failed:", e)
-            raise
+        verification_steps = 0
+        max_verification_steps = 3  # Prevent infinite loops
 
-        # Handle possible email prompt
-        try:
-            email_prompt = WebDriverWait(driver, 3).until(
-                EC.presence_of_element_located((By.XPATH, "//span[contains(text(), 'Telefon nebo e-mail')]"))
-            )
-            email_field = driver.find_element(By.XPATH, "//input[@name='text' and @type='email']")
-            human_typing(email_field, email, driver)
-            email_field.send_keys(Keys.RETURN)
-            # email_field.send_keys(Keys.RETURN) # Instant typing
-            random_mouse_movement(driver)
-            delay(2)
-        except Exception as e:
-            print("No email prompt detected, proceeding to password")
+        while verification_steps < max_verification_steps:
+            try:
+                # Check for password field first
+                WebDriverWait(driver, 2).until(
+                    EC.presence_of_element_located((By.NAME, "password"))
+                )
+                break  # Exit loop if password field appears
+                
+            except TimeoutException:
+                # Handle verification step
+                input_field = WebDriverWait(driver, 5).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, "input[name='text']"))
+                )
+                
+                # Determine required information
+                label = get_input_label(driver)
+                input_type = input_field.get_attribute("type").lower()
+                
+                if any(x in label for x in ["uživatelské", "username", "handle", "nutzername"]):
+                    value = username
+                elif any(x in label for x in ["email", "e-mail", "mail"]):
+                    value = email
+                elif any(x in label for x in ["telefon", "phone", "nummer", "téléphone"]):
+                    raise Exception("Phone verification required")
+                else:
+                    # Fallback to email if label not recognized
+                    value = email
 
-        # Password entry
-        try:
-            password_field = WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.NAME, "password"))
-            )
-            human_typing(password_field, password, driver)
-            password_field.send_keys(Keys.RETURN)
-            random_mouse_movement(driver)
-            delay(3)  # This should now use the correct delay function
-        except Exception as e:
-            print("Password entry failed:", e)
-            raise
+                # Enter value and submit
+                human_typing(input_field, value, driver)
+                input_field.send_keys(Keys.RETURN)
+                delay(2)
+                verification_steps += 1
 
-        # Post-login prompts
-        try:
-            not_now_btn = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and .//span[text()='Not Now']]"))
-            )
-            not_now_btn.click()
-            delay(1)
-        except Exception as e:
-            print("No post-login prompt:", e)
+        # Final password entry
+        password_field = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.NAME, "password"))
+        )
+        human_typing(password_field, password, driver)
+        password_field.send_keys(Keys.RETURN)
+        delay(3)
 
+        # Handle post-login prompts
+        dismiss_post_login_prompts(driver)
         return driver
 
     except Exception as e:
-        print(f"Login failed: {e}")
+        log(f"Login failed: {e}", tag="X ERROR")
         driver.quit()
         return None
+
+def get_input_label(driver):
+    """Get contextual label text using multiple strategies"""
+    try:
+        # Strategy 1: Nearby span element
+        label = driver.execute_script(
+            "return arguments[0].closest('label')?.querySelector('span')?.innerText",
+            driver.find_element(By.CSS_SELECTOR, "input[name='text']")
+        ) or ""
+        
+        # Strategy 2: Placeholder text
+        if not label:
+            label = driver.find_element(
+                By.CSS_SELECTOR, "input[name='text']"
+            ).get_attribute("placeholder") or ""
+            
+        return label.strip().lower()
+    
+    except:
+        return ""
+
+def handle_cookies(driver):
+    """Handle cookie consent dialog if present"""
+    try:
+        WebDriverWait(driver, 3).until(
+            EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Refuse')]"))
+        ).click()
+        delay(1)
+    except:
+        pass
+
+def dismiss_post_login_prompts(driver):
+    """Dismiss any post-login modals"""
+    try:
+        WebDriverWait(driver, 3).until(
+            EC.element_to_be_clickable((By.XPATH, "//div[@role='dialog']//div[@role='button'][contains(., 'Not Now')]"))
+        ).click()
+        delay(1)
+    except:
+        pass

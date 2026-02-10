@@ -1,0 +1,27 @@
+10.2.2026
+--------------------------------------------------------------------------------
+MIGRACE NA DRISSIONPAGE & SESSION PERSISTENCE
+
+1. Přechod ze Selenium na DrissionPage:
+   - Selenium bylo detekováno Xkem (Login loop/Unusual activity).
+   - DrissionPage ovládá prohlížeč přímo přes protokol CDP, což je mnohem hůře detekovatelné.
+
+2. Implementace Portable Browseru:
+   - Staženo "Ungoogled Chromium" (Portable verze).
+   - Umístěno do `social_bot/browser/chrome.exe`.
+   - Důvod: Úplná izolace od systémových prohlížečů (Edge/Brave) a prevence synchronizace s mým osobním účtem.
+
+3. Session Persistence (Ukládání přihlášení):
+   - Bot si nyní pamatuje cookies a neodhlašuje se po vypnutí.
+   - Cesta k profilům: `social_bot/profiles/{ID}`.
+   - Oprava chyby DrissionPage: Bylo nutné vypnout `auto_port()` a nastavit pevný port (9333), jinak DrissionPage ignoroval naši složku a vytvářel dočasné profily v %TEMP%.
+
+4. Vyřešení problémů s cestou (OneDrive):
+   - Problém: OneDrive zamykal soubory profilu a Chromium nedokázalo číst cestu s mezerami a diakritikou ("Programování (moje)").
+   - Řešení: Přesun celého projektu z Plochy přímo do rootu disku (`C:\Ogma`).
+
+5. Ríša doporučuje CamouFox pro randomizaci fingerprintů
+
+STAV: Funkční login (X), cookies se ukládají, bot přežije restart aplikace.
+
+

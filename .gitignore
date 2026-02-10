@@ -1,4 +1,4 @@
-project/identity/users.json
-project/pictures
-IG_scraped_data
-X_scraped_data
+social_bot/identity/users.json
+social_bot/data
+social_bot/browser/
+social_bot/profiles/

@@ -1,3 +1,5 @@
+#TODO: OCR, 
+
 10.2.2026
 --------------------------------------------------------------------------------
 MIGRACE NA DRISSIONPAGE & SESSION PERSISTENCE
@@ -26,5 +28,32 @@ STAV: Funkční login (X), cookies se ukládají, bot přežije restart aplikace
 
 11.2.2026
 --------------------------------------------------------------------------------
-Jdu na IG,
-Funkční přihlašování a zlepšené GUI
+ROZŠÍŘENÍ OSINT BOTŮ (X & IG) A INTEGRACE DATABÁZE DO GUI
+
+1. Architektura GUI a Command Center:
+   - Zavedeno zobrazení SQLite databáze přímo do aplikace pomocí záložek (Tabs) a knihovny Treeview.
+   - Vyřešena automatická správa oken: Aplikace se nyní spolehlivě otevírá na sekundárním monitoru a maximalizuje se.
+   - Zdolán problém s vykreslovacím enginem CustomTkinteru (který rušil maximalizaci okna) přidáním zpoždění (after delay) před voláním state('zoomed').
+
+2. Vylepšení Databáze (SQLite):
+   - Migrace primárních klíčů z inkrementálních INTEGER na UUID pro lepší budoucí škálovatelnost a propojování dat.
+   - Přidány nové tabulky comments a trending.
+   - Přidány sloupce platform (pro snadnější filtraci) a media_url.
+   - Zavedeny automatické migrace schématu a rutiny pro promazávání vadných dat z testování.
+
+3. X Scraper (Twitter):
+   - Opraveno vyhledávání: Bot již nehledá přesnou textovou shodu (která selhávala u rozdílů mezi Display Name a Handle), ale kliká na první relevantní výsledek (UserCell).
+   - Implementována těžba Top 50 komentářů pod příspěvky.
+   - Řešení "Meme Warfare": Pokud uživatel odpoví pouze obrázkem/videem bez textu, bot to rozezná, uloží URL média a text nahradí štítkem [OBSAHUJE FOTKU/VIDEO].
+   - Přidána těžba Trendů s robustním očištěním textového balastu (odstranění stringů jako "Trending in Czechia" nebo oddělovacích teček).
+
+4. Instagram Scraper (Největší technické výzvy):
+   - Vyhledávání: Obfuskace kódu a paměť vyhledávání IG znemožnily klasické DOM vyhledávání. Vyřešeno čtením odkazů shora dolů a kliknutím na první profil, který obsahuje profilový obrázek (vyloučení textového menu a vlastního účtu).
+   - Lazy Loading: Implementováno scrollování a explicitní čekání na vykreslení mřížky fotek (Grid), aby bot nehlásil prázdné profily.
+   - Těžba komentářů (Modal window): Klasický XPath selhal, protože IG v okně s komentáři odstranil tagy <ul>/<li> a standardní scroll posouval pozadí.
+   - Řešení: Nasazena přímá JavaScriptová injekce (run_js). 
+     a) Extrakční skript: Hledá stabilní elementy <time>, stoupá v DOMu nahoru pro zachycení celého bloku a čistí text od UI tlačítek.
+     b) Scroll skript: Identifikuje izolované divy s vlastností overflowY: scroll/auto a rotuje jimi nezávisle na hlavní stránce.
+   - Chybějící ID komentářů vyřešeno generováním kompozitních klíčů (PostID_Author_Timestamp).
+
+STAV: Aplikace funguje jako Command Center. X bot těží profily, komentáře i trendy. IG bot dokáže překonat Lazy Loading a pomocí JS injekcí těžit data z modálních oken.

@@ -31,16 +31,24 @@ class BaseBot:
         if headless:
             co.headless(True)
         
-        # --- ZMĚNA: Prohlížeč se zapne na hlavním monitoru a maximalizuje se ---
-        co.set_argument('--start-maximized')
-        co.set_argument('--window-position=0,0') # Pojistka, aby začal na hlavním displeji
+        # ZMĚNA: Pouze zajistíme start na primárním monitoru.
+        co.set_argument('--window-position=0,0') 
+        # (Argument --start-maximized byl odstraněn, vyvolával konflikt v Chromiu)
 
         co.set_argument('--no-first-run')
         co.set_argument('--no-default-browser-check') 
         co.set_argument('--restore-last-session')
 
         try:
-            return ChromiumPage(co)
+            page = ChromiumPage(co)
+            # ZMĚNA: Nativní spolehlivá maximalizace okna pomocí DrissionPage
+            page.set.window.max() 
+            
+            # Poznámka: Pokud jsi myslel "absolutní fullscreen" bez hlavního panelu Windows (jako po stisku F11), 
+            # nahraď řádek výše tímto: page.set.window.full()
+            
+            return page
+            
         except Exception as e:
             print(f"[CRITICAL ERROR] Nelze spustit prohlížeč: {e}")
             raise e

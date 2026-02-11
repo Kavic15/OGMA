@@ -3,7 +3,8 @@ from src.utils.human_input import delay
 
 class XBot(BaseBot):
     def __init__(self, username, password, user_id="default"):
-        super().__init__(user_id=user_id)
+        # Předáme platform="x" do BaseBot
+        super().__init__(user_id=user_id, platform="x")
         self.username = username
         self.password = password
         self.base_url = "https://x.com/"

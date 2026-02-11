@@ -24,4 +24,7 @@ MIGRACE NA DRISSIONPAGE & SESSION PERSISTENCE
 
 STAV: Funkční login (X), cookies se ukládají, bot přežije restart aplikace.
 
-
+11.2.2026
+--------------------------------------------------------------------------------
+Jdu na IG,
+Funkční přihlašování a zlepšené GUI

@@ -4,39 +4,37 @@ import os
 from pathlib import Path
 
 class BaseBot:
-    def __init__(self, headless=False, user_id="default"):
+    def __init__(self, headless=False, user_id="default", platform="general"):
         self.user_id = str(user_id)
+        self.platform = platform
         self.page = self._setup_driver(headless)
 
     def _setup_driver(self, headless):
         co = ChromiumOptions()
         
-        # 1. CESTY
         current_file = Path(__file__).resolve()
         project_root = current_file.parent.parent.parent
         
-        # Cesta k profilu
-        profile_path = project_root / 'profiles' / self.user_id
+        profile_folder = f"{self.user_id}_{self.platform}"
+        profile_path = project_root / 'profiles' / profile_folder
         os.makedirs(profile_path, exist_ok=True)
         
-        print(f"[BOT] Profil: {profile_path}")
+        print(f"[BOT] Nastavuji izolovaný profil: {profile_path}")
         
-        # 2. PROHLÍŽEČ (Portable)
         browser_path = project_root / 'browser' / 'chrome.exe'
         if browser_path.exists():
             co.set_paths(browser_path=str(browser_path))
-        else:
-            print("[WARNING] Portable browser nenalezen, používám systémový.")
         
-        # 3. NASTAVENÍ PROFILU A PORTU
         co.set_user_data_path(str(profile_path))
-        co.set_local_port(9333) # Pevný port je nutný pro správné načtení profilu
+        co.set_local_port(9333) 
 
-        # 4. CONFIG
         if headless:
             co.headless(True)
         
+        # --- ZMĚNA: Prohlížeč se zapne na hlavním monitoru a maximalizuje se ---
         co.set_argument('--start-maximized')
+        co.set_argument('--window-position=0,0') # Pojistka, aby začal na hlavním displeji
+
         co.set_argument('--no-first-run')
         co.set_argument('--no-default-browser-check') 
         co.set_argument('--restore-last-session')
@@ -76,17 +74,31 @@ class BaseBot:
         return False
         
     def handle_popups(self, triggers):
-        conditions = [f"contains(text(), '{text}')" for text in triggers]
-        xpath = f"xpath://*[{' or '.join(conditions)}]"
-        if self.click_smart(xpath, "Popup Dialog", timeout=2):
-            delay(1)
-            return True
+        for text in triggers:
+            ele = self.page.ele(f'text:{text}', timeout=0.5)
+            if ele:
+                try:
+                    ele.click()
+                    print(f"[BOT] Odkliknuto vyskakovací okno: '{text}'")
+                    delay(1)
+                    return True
+                except:
+                    try:
+                        ele.click(by_js=True)
+                        return True
+                    except:
+                        pass
         return False
 
     def close(self):
-        print(f"[BOT] Ukládám profil {self.user_id} a zavírám...")
+        # POJISTKA: Pokud už je stránka zavřená, nedělej nic
+        if getattr(self, 'page', None) is None:
+            return
+            
+        print(f"[BOT] Ukládám profil {self.user_id}_{self.platform} a zavírám...")
         try:
             self.page.quit() 
+            self.page = None # Vynulujeme objekt, abychom nezavírali dvakrát
             print("[BOT] Uloženo.")
-        except Exception as e:
-            print(f"[ERROR] Chyba při zavírání: {e}")
+        except Exception:
+            pass # Ignorujeme chyby, pokud už uživatel prohlížeč zavřel křížkem

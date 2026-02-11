@@ -15,68 +15,151 @@ requests
 ## Soubor: social_bot\main.py
 ```py
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import messagebox
+import customtkinter as ctk
 import threading
 import json
 import os
-import time  # Přidán import time
+import time
+import sys
 from src.bots.instagram import InstagramBot
 from src.bots.x import XBot
 
-class App(tk.Tk):
+# Nastavení moderního vzhledu
+ctk.set_appearance_mode("Dark")  # Možnosti: "System", "Dark", "Light"
+ctk.set_default_color_theme("blue")  # Možnosti: "blue", "green", "dark-blue"
+
+# --- Odchytávání printů do GUI ---
+class PrintLogger:
+    def __init__(self, textbox, tk_app):
+        self.textbox = textbox
+        self.tk_app = tk_app
+
+    def write(self, text):
+        self.tk_app.after(0, self._insert_text, text)
+
+    def _insert_text(self, text):
+        self.textbox.insert(tk.END, text)
+        self.textbox.see(tk.END) 
+
+    def flush(self):
+        pass
+
+class App(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Social Bot 2.0 (IG & X)")
-        self.geometry("450x400")
+        self.title("Social Bot - Command Center")
+        self.geometry("1440x900")
+        
+        # --- NASTAVENÍ IKONY OKNA ---
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        icon_path = os.path.join(base_dir, 'src', 'gui', 'ogma_ai_logo.ico')
+        
+        if os.path.exists(icon_path):
+            self.iconbitmap(icon_path)
+        else:
+            print(f"[WARNING] Ikona nenalezena na cestě: {icon_path}")
+        # ----------------------------
         
         self.current_bot = None 
         self.is_running = False
 
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
         
-        base_dir = os.path.dirname(os.path.abspath(__file__))
         self.data_path = os.path.join(base_dir, 'data', 'users.json')
         
         self.users_map = {}
         self.load_users()
 
-        # --- UI Prvky ---
-        ttk.Label(self, text="Vyber bota (Identita):").pack(pady=5)
+        # --- OVLÁDÁNÍ A LOGY (CTkFrames) ---
+        top_frame = ctk.CTkFrame(self, fg_color="transparent")
+        top_frame.pack(side="top", fill="x", pady=20, padx=40)
         
-        self.user_var = tk.StringVar()
-        self.user_combo = ttk.Combobox(self, textvariable=self.user_var, state="readonly")
-        self.user_combo['values'] = list(self.users_map.keys())
+        log_frame = ctk.CTkFrame(self)
+        log_frame.pack(side="bottom", fill="both", expand=True, padx=40, pady=(0, 40))
+
+        # --- PRVKY ---
+        ctk.CTkLabel(top_frame, text="Vyber bota (Identita):", font=("Arial", 16, "bold")).pack(pady=5)
+        
+        self.user_var = ctk.StringVar()
+        self.user_combo = ctk.CTkComboBox(
+            top_frame, 
+            variable=self.user_var, 
+            state="readonly", 
+            font=("Arial", 14), 
+            dropdown_font=("Arial", 14),
+            width=350,
+            height=40
+        )
+        self.user_combo.configure(values=list(self.users_map.keys()))
         if self.users_map:
-            self.user_combo.current(0)
-        self.user_combo.pack(pady=5, fill='x', padx=20)
+            self.user_combo.set(list(self.users_map.keys())[0])
+        self.user_combo.pack(pady=5)
 
-        ttk.Label(self, text="Cíl (Target Username):").pack(pady=5)
-        self.entry_target = ttk.Entry(self)
-        self.entry_target.insert(0, "realDonaldTrump")
-        self.entry_target.pack(pady=5, fill='x', padx=20)
-
-        # Frame pro tlačítka
-        btn_frame = ttk.Frame(self)
+        btn_frame = ctk.CTkFrame(top_frame, fg_color="transparent")
         btn_frame.pack(pady=20)
 
-        self.btn_ig = ttk.Button(btn_frame, text="Spustit Instagram", command=lambda: self.start_thread("instagram"))
-        self.btn_ig.grid(row=0, column=0, padx=10)
+        self.btn_ig = ctk.CTkButton(
+            btn_frame, 
+            text="Přihlásit IG", 
+            command=lambda: self.start_thread("instagram"), 
+            width=200, 
+            height=45,
+            font=("Arial", 14, "bold")
+        )
+        self.btn_ig.grid(row=0, column=0, padx=15)
 
-        self.btn_x = ttk.Button(btn_frame, text="Spustit X (Twitter)", command=lambda: self.start_thread("X"))
-        self.btn_x.grid(row=0, column=1, padx=10)
+        self.btn_x = ctk.CTkButton(
+            btn_frame, 
+            text="Přihlásit X", 
+            command=lambda: self.start_thread("X"), 
+            width=200, 
+            height=45,
+            font=("Arial", 14, "bold")
+        )
+        self.btn_x.grid(row=0, column=1, padx=15)
 
-        # Tlačítko STOP
-        self.btn_stop = tk.Button(self, text="STOP / UKONČIT BOTA", bg="#ffcccc", fg="red", command=self.stop_bot)
-        self.btn_stop.pack(pady=10, fill='x', padx=50)
+        # Výrazné červené tlačítko STOP
+        self.btn_stop = ctk.CTkButton(
+            top_frame, 
+            text="STOP A ULOŽIT SESSION", 
+            fg_color="#CC0000", 
+            hover_color="#990000", 
+            font=("Arial", 14, "bold"), 
+            command=self.stop_bot,
+            width=300,
+            height=45
+        )
+        self.btn_stop.pack(pady=15)
 
-        self.status_label = ttk.Label(self, text="Připraveno", foreground="gray")
-        self.status_label.pack(side="bottom", pady=5)
+        self.status_label = ctk.CTkLabel(top_frame, text="Připraveno", text_color="gray", font=("Arial", 14))
+        self.status_label.pack(pady=5)
+
+        # --- LOGY ---
+        ctk.CTkLabel(log_frame, text="Real-time Bot Logs:", font=("Consolas", 14, "bold")).pack(anchor="w", padx=15, pady=(15, 5))
+        
+        # CTkTextbox má nativně zabudovaný scrollbar, takže kód je mnohem čistší
+        self.log_text = ctk.CTkTextbox(
+            log_frame, 
+            fg_color="#121212", 
+            text_color="#00ff00", 
+            font=("Consolas", 13), 
+            wrap="word"
+        )
+        self.log_text.pack(side="bottom", fill="both", expand=True, padx=15, pady=(0, 15))
+
+        # Přesměrování výstupů
+        sys.stdout = PrintLogger(self.log_text, self)
+        sys.stderr = PrintLogger(self.log_text, self)
+
+        print("=== COMMAND CENTER INICIALIZOVÁNO ===")
+        print("Grafické rozhraní přepnuto do režimu CustomTkinter.")
+        print("Přesunut okno na sekundární monitor a můžeš začít...")
 
     def load_users(self):
         if not os.path.exists(self.data_path):
             messagebox.showerror("Chyba", f"Nenalezen soubor: {self.data_path}")
             return
-
         try:
             with open(self.data_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
@@ -91,14 +174,11 @@ class App(tk.Tk):
         if not selected_key:
             messagebox.showwarning("Pozor", "Nevybral jsi žádného uživatele!")
             return None, None
-
         user_data = self.users_map.get(selected_key)
         social_data = user_data.get('social_media', {}).get(platform_key)
-        
         if not social_data:
             messagebox.showerror("Chyba", f"Uživatel nemá údaje pro {platform_key}!")
             return None, None
-            
         return social_data.get('username'), social_data.get('password')
 
     def start_thread(self, platform):
@@ -109,72 +189,123 @@ class App(tk.Tk):
         username, password = self.get_credentials(platform)
         if not username: return
 
-        target = self.entry_target.get()
         user_id = self.user_var.get().split(" - ")[0]
 
-        self.status_label.config(text=f"Spouštím {platform} pro ID {user_id}...")
+        self.update_status(f"Spouštím {platform} pro ID {user_id}...")
         self.is_running = True
         
-        threading.Thread(target=self.run_bot, args=(platform, username, password, target, user_id)).start()
+        self.log_text.delete(1.0, tk.END)
+        print(f"=== STARTING {platform.upper()} BOT ===")
+        
+        threading.Thread(target=self.run_bot, args=(platform, username, password, user_id), daemon=True).start()
 
-    def run_bot(self, platform, username, password, target, user_id):
+    def run_bot(self, platform, username, password, user_id):
         try:
             if platform == "instagram":
                 self.current_bot = InstagramBot(username, password, user_id=user_id)
                 self.current_bot.login()
-                if target:
-                    self.current_bot.scrape_profile(target)
             elif platform == "X":
                 self.current_bot = XBot(username, password, user_id=user_id)
                 self.current_bot.login()
             
-            # --- DŮLEŽITÁ ZMĚNA: NEKONČIT, DOKUD NENÍ STISKNUTO STOP ---
-            self.update_status("Bot běží a čeká. Klikni na STOP pro uložení.")
+            self.update_status("Login hotový. Čekám. Klikni na STOP pro uložení.")
+            print("\n[INFO] Bot dokončil úlohu. Čeká na tvůj příkaz STOP...")
             while self.is_running:
-                time.sleep(1) # Čekáme ve smyčce, aby se bot nevypnul
-            # -----------------------------------------------------------
+                time.sleep(1)
 
         except Exception as e:
-            if "Connection closed" not in str(e) and "Target closed" not in str(e):
-                print(f"ERROR: {e}")
-                self.update_status(f"Chyba: {e}")
+            err_msg = str(e)
+            ignored_errors = ["Connection closed", "Target closed", "页面的连接已断开", "disconnected"]
+            if any(err in err_msg for err in ignored_errors):
+                self.update_status("Bot byl bezpečně ukončen.")
             else:
-                self.update_status("Bot byl ukončen.")
+                print(f"\n[CRITICAL ERROR]: {e}")
+                self.update_status("Chyba: V logu")
         finally:
-            # Tento blok se provede až když self.is_running nastaveno na False (tlačítkem STOP)
             if self.current_bot:
-                self.current_bot.close() # Tady se uloží data!
+                self.current_bot.close()
                 self.current_bot = None
             self.is_running = False
 
-    def stop_bot(self):
-        """Bezpečné ukončení bota."""
+    def stop_bot(self, silent=False):
+        """Zastaví bota. Pokud silent=True, nevypisuje messagebox při nečinnosti."""
         if self.is_running:
-            self.status_label.config(text="Zastavuji bota a ukládám data...")
-            print("--- STOP BUTTON PRESSED ---")
-            # Nastavením na False se přeruší smyčka while v run_bot
+            self.update_status("Zastavuji bota a ukládám data...")
+            print("\n--- PŘIJAT PŘÍKAZ K UKONČENÍ A ULOŽENÍ ---")
             self.is_running = False 
+            if self.current_bot:
+                self.current_bot.close()
         else:
-            messagebox.showinfo("Info", "Žádný bot neběží.")
+            if not silent:
+                messagebox.showinfo("Info", "Žádný bot neběží.")
 
     def update_status(self, text):
-        self.after(0, lambda: self.status_label.config(text=text))
+        try:
+            if self.winfo_exists():
+                self.after(0, lambda: self.status_label.configure(text=text))
+        except Exception:
+            pass
 
     def on_closing(self):
-        self.stop_bot()
-        # Malá pauza, aby se stihlo zavolat close() ve vlákně
-        self.after(1000, self.destroy)
+        self.stop_bot(silent=True)
+        sys.stdout = sys.__stdout__
+        sys.stderr = sys.__stderr__
+        self.after(500, self.destroy)
 
 if __name__ == "__main__":
     try:
         app = App()
-        # update() pomáhá stabilizovat okno před spuštěním smyčky
         app.update() 
         app.mainloop()
     except KeyboardInterrupt:
         print("\n[INFO] Aplikace byla ukončena uživatelem (CTRL+C).")
     except Exception as e:
         print(f"\n[CRITICAL ERROR] Aplikace spadla: {e}")
+```
+
+## Soubor: social_bot\test_profile.py
+```py
+from src.core.base_bot import BaseBot
+import time
+import os
+
+# Jednoduchý test, zda se vytvoří profil
+print("--- TEST ZAČÍNÁ ---")
+
+# Inicializace bota (použije ID "test_user")
+try:
+    bot = BaseBot(headless=False, user_id="test_user")
+    
+    print("Otevírám Google...")
+    bot.page.get("https://www.google.com")
+    
+    print("Čekám 5 sekund (nyní zkontroluj složku profiles/test_user)...")
+    time.sleep(5)
+    
+    print("Zavírám bota...")
+    bot.close()
+    print("--- TEST DOKONČEN ---")
+    
+    # Kontrola
+    profile_dir = os.path.join(os.getcwd(), 'profiles', 'test_user')
+    if os.path.exists(profile_dir) and len(os.listdir(profile_dir)) > 0:
+        print(f"✅ ÚSPĚCH! Složka profilu není prázdná: {profile_dir}")
+        print(f"Počet souborů/složek: {len(os.listdir(profile_dir))}")
+    else:
+        print(f"❌ CHYBA! Složka profilu je stále prázdná: {profile_dir}")
+
+except Exception as e:
+    print(f"CRITICAL ERROR: {e}")
+```
+
+## Soubor: social_bot\profiles\0_ig\Default\Service Worker\CacheStorage\2348e52d6de9218df880d9a88ad6a5d8c2c9555c\index.txt
+```txt
+Chyba při čtení souboru: 'utf-8' codec can't decode byte 0x80 in position 55: invalid start byte
+```
+
+## Soubor: social_bot\profiles\0_x\Default\Service Worker\CacheStorage\bd1c4d03a881bd4b56183475e9bd7806830c983b\index.txt
+```txt
+Chyba při čtení souboru: 'utf-8' codec can't decode byte 0x89 in position 1: invalid start byte
 ```
 
 ## Soubor: social_bot\src\bots\instagram.py
@@ -184,7 +315,7 @@ from src.utils.human_input import delay
 
 class InstagramBot(BaseBot):
     def __init__(self, username, password, user_id="default"):
-        super().__init__(user_id=user_id)
+        super().__init__(user_id=user_id, platform="ig") 
         self.username = username
         self.password = password
         self.base_url = "https://www.instagram.com/"
@@ -192,40 +323,71 @@ class InstagramBot(BaseBot):
     def login(self):
         self.open_url(self.base_url)
         
-        # 1. Kontrola, zda už nejsme přihlášeni (Session Persistence)
-        # Hledáme ikonu domů nebo profilu
-        if self.page.ele('@aria-label=Domů') or self.page.ele('text:Profile'):
-            print("[IG] Již přihlášeno (ze session). Přeskakuji login.")
-            return
+        # 1. Agresivní likvidace Cookies (Hunter Mode)
+        print("[IG] Kontroluji Cookies okna...")
+        cookie_keywords = ['Povolit', 'Odmítnout', 'Allow', 'Decline']
+        for word in cookie_keywords:
+            elements = self.page.eles(f'text:{word}')
+            for ele in elements:
+                if ele.states.is_displayed:
+                    try:
+                        ele.click(by_js=True)
+                        print(f"[IG] Odkliknuto cookie tlačítko: '{word}'")
+                        delay(2)
+                        break
+                    except:
+                        pass
 
-        # 2. Univerzální likvidace Cookies
-        self.handle_popups(['Decline', 'Odmítnout', 'Allow all', 'Povolit', 'Only allow essential'])
-
-        # 3. Samotný Login (jen pokud vidíme inputy)
-        if self.page.ele('@name=username', timeout=5):
-            print("[IG] Zadávám přihlašovací údaje...")
-            self.page.ele('@name=username').input(self.username)
-            delay(0.5, 1)
-            self.page.ele('@name=password').input(self.password)
-            delay(1, 2)
-            self.click_smart('@type=submit', "Login Button")
-            delay(5, 8)
+        # 2. HLEDÁME VIDITELNÝ FORMULÁŘ
+        print("[IG] Kontroluji stav přihlášení...")
+        all_login_inputs = self.page.eles('@name=email') + self.page.eles('@name=username')
+        all_pass_inputs = self.page.eles('@name=pass') + self.page.eles('@name=password')
         
-        # 4. Úklid po přihlášení (Not Now, Save Info)
-        triggers = ['Not Now', 'Nyní ne', 'Not now', 'Uložit informace']
-        for _ in range(2): # Zkusíme dvakrát, často jsou tam dvě okna za sebou
-            self.handle_popups(triggers)
+        login_input = None
+        for inp in all_login_inputs:
+            if inp.states.is_displayed:
+                login_input = inp
+                break
+                
+        pass_input = None
+        for inp in all_pass_inputs:
+            if inp.states.is_displayed:
+                pass_input = inp
+                break
 
-    def scrape_profile(self, target_username):
-        url = f"{self.base_url}{target_username}/"
-        self.open_url(url)
+        if not login_input:
+            if self.page.ele('css:svg[aria-label="Domů"]', timeout=3) or self.page.ele('css:svg[aria-label="Home"]', timeout=1):
+                print("[IG] Již přihlášeno (ze session). Přeskakuji login.")
+                return
+            else:
+                print("[IG] Nevidím viditelný login formulář, ale ani znaky přihlášení.")
+                return
+
+        # 3. Samotný Login
+        print("[IG] Zadávám přihlašovací údaje...")
+        login_input.input(self.username)
+        delay(0.5, 1)
         
-        # Klik na první post
-        first_post = self.page.ele('css:article a', timeout=5) 
-        if first_post:
-            print(f"[IG] Otevírám první post u {target_username}...")
-            first_post.click()
-            delay(2)
+        if pass_input:
+            pass_input.input(self.password)
+        delay(1, 2)
+        
+        submit_btn = self.page.ele('@type=submit', timeout=2)
+        if submit_btn and submit_btn.states.is_displayed:
+            submit_btn.click(by_js=True)
+        else:
+            login_btns = self.page.eles('text:Přihlásit') + self.page.eles('text:Log in')
+            for btn in login_btns:
+                if btn.states.is_displayed:
+                    btn.click(by_js=True)
+                    break
+            
+        delay(5, 8)
+        
+        # 4. Úklid po přihlášení
+        print("[IG] Provádím úklid po přihlášení...")
+        self.handle_popups(['Nyní ne', 'Not Now', 'Uložit', 'Save'])
+        print("[IG] Přihlašovací proces dokončen.")
 ```
 
 ## Soubor: social_bot\src\bots\x.py
@@ -235,7 +397,8 @@ from src.utils.human_input import delay
 
 class XBot(BaseBot):
     def __init__(self, username, password, user_id="default"):
-        super().__init__(user_id=user_id)
+        # Předáme platform="x" do BaseBot
+        super().__init__(user_id=user_id, platform="x")
         self.username = username
         self.password = password
         self.base_url = "https://x.com/"
@@ -307,47 +470,40 @@ import os
 from pathlib import Path
 
 class BaseBot:
-    def __init__(self, headless=False, user_id="default"):
+    def __init__(self, headless=False, user_id="default", platform="general"):
         self.user_id = str(user_id)
+        self.platform = platform
         self.page = self._setup_driver(headless)
 
     def _setup_driver(self, headless):
         co = ChromiumOptions()
         
-        # --- 1. CESTY (Relativní k projektu) ---
-        # Získáme kořenovou složku projektu (social_bot)
         current_file = Path(__file__).resolve()
         project_root = current_file.parent.parent.parent
         
-        # A) Cesta k PROFILŮM (social_bot/profiles/ID)
-        profile_path = project_root / 'profiles' / self.user_id
+        profile_folder = f"{self.user_id}_{self.platform}"
+        profile_path = project_root / 'profiles' / profile_folder
         os.makedirs(profile_path, exist_ok=True)
-        print(f"[BOT] Profil: {profile_path}")
-        co.set_user_data_path(str(profile_path))
         
-        # B) Cesta k PROHLÍŽEČI (social_bot/browser/chrome.exe)
-        # Hledáme soubor chrome.exe ve složce browser
+        print(f"[BOT] Nastavuji izolovaný profil: {profile_path}")
+        
         browser_path = project_root / 'browser' / 'chrome.exe'
-        
         if browser_path.exists():
-            print(f"[BOT] Používám Portable Browser: {browser_path}")
             co.set_paths(browser_path=str(browser_path))
-        else:
-            # Kdyby se něco pokazilo a soubor tam nebyl
-            print(f"[WARNING] Portable browser nenalezen v {browser_path}!")
-            print("[BOT] Zkouším najít systémový prohlížeč jako zálohu...")
+        
+        co.set_user_data_path(str(profile_path))
+        co.set_local_port(9333) 
 
-        # --- 2. CONFIG ---
-        co.auto_port() 
         if headless:
             co.headless(True)
         
-        # Argumenty pro Ungoogled Chromium / Portable verzi
+        # --- ZMĚNA: Prohlížeč se zapne na hlavním monitoru a maximalizuje se ---
         co.set_argument('--start-maximized')
+        co.set_argument('--window-position=0,0') # Pojistka, aby začal na hlavním displeji
+
         co.set_argument('--no-first-run')
-        co.set_argument('--password-store=basic') 
-        co.set_argument('--restore-last-session')
         co.set_argument('--no-default-browser-check') 
+        co.set_argument('--restore-last-session')
 
         try:
             return ChromiumPage(co)
@@ -384,20 +540,34 @@ class BaseBot:
         return False
         
     def handle_popups(self, triggers):
-        conditions = [f"contains(text(), '{text}')" for text in triggers]
-        xpath = f"xpath://*[{' or '.join(conditions)}]"
-        if self.click_smart(xpath, "Popup Dialog", timeout=2):
-            delay(1)
-            return True
+        for text in triggers:
+            ele = self.page.ele(f'text:{text}', timeout=0.5)
+            if ele:
+                try:
+                    ele.click()
+                    print(f"[BOT] Odkliknuto vyskakovací okno: '{text}'")
+                    delay(1)
+                    return True
+                except:
+                    try:
+                        ele.click(by_js=True)
+                        return True
+                    except:
+                        pass
         return False
 
     def close(self):
-        print(f"[BOT] Ukládám profil {self.user_id} a zavírám...")
+        # POJISTKA: Pokud už je stránka zavřená, nedělej nic
+        if getattr(self, 'page', None) is None:
+            return
+            
+        print(f"[BOT] Ukládám profil {self.user_id}_{self.platform} a zavírám...")
         try:
             self.page.quit() 
+            self.page = None # Vynulujeme objekt, abychom nezavírali dvakrát
             print("[BOT] Uloženo.")
-        except Exception as e:
-            print(f"[ERROR] Chyba při zavírání: {e}")
+        except Exception:
+            pass # Ignorujeme chyby, pokud už uživatel prohlížeč zavřel křížkem
 ```
 
 ## Soubor: social_bot\src\utils\human_input.py

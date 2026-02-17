@@ -18,12 +18,14 @@ class DatabaseManager:
         
         self._connect()
         self._create_tables()
+        self._migrate_db() # Kontrola nových sloupců
 
     def _connect(self):
-        self.conn = sqlite3.connect(str(self.db_path))
+        self.conn = sqlite3.connect(str(self.db_path), timeout=10) 
         self.cursor = self.conn.cursor()
 
     def _create_tables(self):
+        # TABULKA USERS - přidán sloupec profile_pic_url
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 id TEXT PRIMARY KEY,
@@ -33,6 +35,7 @@ class DatabaseManager:
                 display_name TEXT,
                 bio TEXT,
                 followers_count INTEGER,
+                profile_pic_url TEXT, 
                 last_scraped TIMESTAMP,
                 UNIQUE(platform, username)
             )
@@ -92,7 +95,19 @@ class DatabaseManager:
         
         self.conn.commit()
 
-    def upsert_user(self, platform, username, platform_user_id=None, display_name=None, bio=None, followers_count=None):
+    def _migrate_db(self):
+        """Zkontroluje, zda existuje sloupec profile_pic_url, a pokud ne, přidá ho."""
+        try:
+            self.cursor.execute("SELECT profile_pic_url FROM users LIMIT 1")
+        except sqlite3.OperationalError:
+            print("[DB] Migrace: Přidávám sloupec profile_pic_url do tabulky users.")
+            try:
+                self.cursor.execute("ALTER TABLE users ADD COLUMN profile_pic_url TEXT")
+                self.conn.commit()
+            except Exception as e:
+                print(f"[DB ERROR] Nepodařilo se přidat sloupec: {e}")
+
+    def upsert_user(self, platform, username, platform_user_id=None, display_name=None, bio=None, followers_count=None, profile_pic_url=None):
         now = datetime.now(timezone.utc).isoformat()
         
         self.cursor.execute('SELECT id FROM users WHERE platform = ? AND username = ?', (platform, username))
@@ -106,98 +121,89 @@ class DatabaseManager:
                     display_name = COALESCE(?, display_name),
                     bio = COALESCE(?, bio),
                     followers_count = COALESCE(?, followers_count),
+                    profile_pic_url = COALESCE(?, profile_pic_url),
                     last_scraped = ?
                 WHERE id = ?
-            ''', (platform_user_id, display_name, bio, followers_count, now, user_id))
+            ''', (platform_user_id, display_name, bio, followers_count, profile_pic_url, now, user_id))
         else:
             user_id = str(uuid.uuid4())
             self.cursor.execute('''
-                INSERT INTO users (id, platform, platform_user_id, username, display_name, bio, followers_count, last_scraped)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (user_id, platform, platform_user_id, username, display_name, bio, followers_count, now))
+                INSERT INTO users (id, platform, platform_user_id, username, display_name, bio, followers_count, profile_pic_url, last_scraped)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (user_id, platform, platform_user_id, username, display_name, bio, followers_count, profile_pic_url, now))
         
         self.conn.commit()
         return user_id
 
     def upsert_post(self, user_id, platform, platform_post_id, text_content, timestamp_posted, likes_count=0, shares_count=0, comments_count=0, url=None, media_url=None):
         now = datetime.now(timezone.utc).isoformat()
-        
         self.cursor.execute('SELECT id FROM posts WHERE platform_post_id = ?', (platform_post_id,))
         row = self.cursor.fetchone()
-        
         if row:
             post_id = row[0]
-            self.cursor.execute('''
-                UPDATE posts SET
-                    media_url = COALESCE(?, media_url),
-                    likes_count = ?,
-                    shares_count = ?,
-                    comments_count = ?,
-                    scraped_at = ?
-                WHERE id = ?
-            ''', (media_url, likes_count, shares_count, comments_count, now, post_id))
+            self.cursor.execute('''UPDATE posts SET media_url=?, likes_count=?, shares_count=?, comments_count=?, scraped_at=? WHERE id=?''', (media_url, likes_count, shares_count, comments_count, now, post_id))
         else:
             post_id = str(uuid.uuid4())
-            self.cursor.execute('''
-                INSERT INTO posts (id, user_id, platform, platform_post_id, text_content, media_url, timestamp_posted, likes_count, shares_count, comments_count, url, scraped_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (post_id, user_id, platform, platform_post_id, text_content, media_url, timestamp_posted, likes_count, shares_count, comments_count, url, now))
-        
+            self.cursor.execute('''INSERT INTO posts (id, user_id, platform, platform_post_id, text_content, media_url, timestamp_posted, likes_count, shares_count, comments_count, url, scraped_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', (post_id, user_id, platform, platform_post_id, text_content, media_url, timestamp_posted, likes_count, shares_count, comments_count, url, now))
         self.conn.commit()
         return post_id
 
     def upsert_comment(self, post_id, platform, platform_comment_id, author_username, author_display_name, text_content, timestamp_posted, likes_count=0, shares_count=0, replies_count=0, media_url=None):
         now = datetime.now(timezone.utc).isoformat()
-        
         self.cursor.execute('SELECT id FROM comments WHERE platform_comment_id = ?', (platform_comment_id,))
         row = self.cursor.fetchone()
-        
         if row:
             comment_id = row[0]
-            self.cursor.execute('''
-                UPDATE comments SET
-                    media_url = COALESCE(?, media_url),
-                    likes_count = ?,
-                    shares_count = ?,
-                    replies_count = ?,
-                    scraped_at = ?
-                WHERE id = ?
-            ''', (media_url, likes_count, shares_count, replies_count, now, comment_id))
+            self.cursor.execute('''UPDATE comments SET media_url=?, likes_count=?, shares_count=?, replies_count=?, scraped_at=? WHERE id=?''', (media_url, likes_count, shares_count, replies_count, now, comment_id))
         else:
             comment_id = str(uuid.uuid4())
-            self.cursor.execute('''
-                INSERT INTO comments (id, post_id, platform, platform_comment_id, author_username, author_display_name, text_content, media_url, timestamp_posted, likes_count, shares_count, replies_count, scraped_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (comment_id, post_id, platform, platform_comment_id, author_username, author_display_name, text_content, media_url, timestamp_posted, likes_count, shares_count, replies_count, now))
-        
+            self.cursor.execute('''INSERT INTO comments (id, post_id, platform, platform_comment_id, author_username, author_display_name, text_content, media_url, timestamp_posted, likes_count, shares_count, replies_count, scraped_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', (comment_id, post_id, platform, platform_comment_id, author_username, author_display_name, text_content, media_url, timestamp_posted, likes_count, shares_count, replies_count, now))
         self.conn.commit()
         return comment_id
 
     def upsert_trend(self, platform, rank, category, topic_name, post_count):
         now = datetime.now(timezone.utc).isoformat()
-        
         self.cursor.execute('SELECT id FROM trending WHERE platform = ? AND topic_name = ?', (platform, topic_name))
         row = self.cursor.fetchone()
-        
         if row:
             trend_id = row[0]
-            self.cursor.execute('''
-                UPDATE trending SET
-                    rank = ?,
-                    category = ?,
-                    post_count = ?,
-                    scraped_at = ?
-                WHERE id = ?
-            ''', (rank, category, post_count, now, trend_id))
+            self.cursor.execute('''UPDATE trending SET rank=?, category=?, post_count=?, scraped_at=? WHERE id=?''', (rank, category, post_count, now, trend_id))
         else:
             trend_id = str(uuid.uuid4())
-            self.cursor.execute('''
-                INSERT INTO trending (id, platform, rank, category, topic_name, post_count, scraped_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (trend_id, platform, rank, category, topic_name, post_count, now))
-        
+            self.cursor.execute('''INSERT INTO trending (id, platform, rank, category, topic_name, post_count, scraped_at) VALUES (?, ?, ?, ?, ?, ?, ?)''', (trend_id, platform, rank, category, topic_name, post_count, now))
         self.conn.commit()
         return trend_id
+    
+    def get_known_handle(self, query):
+        """
+        Pokusí se najít username v DB na základě query (shoda s username nebo display_name).
+        Vrací username (str) nebo None.
+        """
+        # Vyčistíme query od zavináče pro hledání
+        clean_q = query.replace('@', '').strip()
+        search_pattern = f"%{clean_q}%"
+        
+        try:
+            # Hledáme přesnou shodu prioritně, pak částečnou
+            self.cursor.execute('''
+                SELECT username FROM users 
+                WHERE platform = 'X' AND (LOWER(username) = LOWER(?) OR LOWER(display_name) = LOWER(?))
+                LIMIT 1
+            ''', (clean_q, clean_q))
+            row = self.cursor.fetchone()
+            
+            if row:
+                return row[0]
+                
+            # Pokud není přesná shoda, zkusíme LIKE (opatrně, ať nenajdeme nesmysly)
+            # Zde to raději necháme jen na přesnou shodu nebo velmi blízkou, 
+            # abychom omylem nepoužili "Elon Musk Parody" pro dotaz "Elon Musk".
+            # Pro tuto chvíli stačí přímá shoda jména.
+            return None
+            
+        except Exception as e:
+            print(f"[DB ERROR] Chyba při hledání handle: {e}")
+            return None
 
     def close(self):
         if self.conn:

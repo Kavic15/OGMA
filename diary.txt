@@ -57,3 +57,29 @@ ROZŠÍŘENÍ OSINT BOTŮ (X & IG) A INTEGRACE DATABÁZE DO GUI
    - Chybějící ID komentářů vyřešeno generováním kompozitních klíčů (PostID_Author_Timestamp).
 
 STAV: Aplikace funguje jako Command Center. X bot těží profily, komentáře i trendy. IG bot dokáže překonat Lazy Loading a pomocí JS injekcí těžit data z modálních oken.
+
+17.2.2026
+--------------------------------------------------------------------------------
+REDESIGN GUI (BITWARDEN STYLE) A OPTIMALIZACE X SCRAPERA
+
+1. Nové GUI a Vizualizace dat:
+   - Kompletní přepis `app.py`: Přechod z horních záložek na levý Sidebar (inspirováno aplikací Bitwarden).
+   - Nová sekce "Scrapnuté Profily": Data vizualizována formou karet s profilovkou, biem a statistikami (místo pouhé tabulky).
+   - Implementován asynchronní loader obrázků s cacheováním a "Center-Crop" ořezem, aby se fotky ve widgetech nedeformovaly.
+   - Přidán Progress Bar a detailní status log pro sledování průběhu hromadných operací.
+
+2. Pokročilá logika X Scrapera (Zrychlení a Stabilita):
+   - Hromadný sběr (Batch Scraping): Pole pro cíl nyní přijímá seznam jmen oddělený čárkami (např. "elonmusk, nasa, ...").
+   - Třístupňové vyhledávání cíle (konec hádání URL):
+     1. Cache (DB): Pokud známe handle z minula, jdeme přímo.
+     2. X Search: Interní vyhledávání přes záložku Explore -> People.
+     3. Google Fallback: Pokud X selže, bot hledá přes Google ("Jmeno twitter") a kliká na první výsledek.
+   - Optimalizace komentářů: Přechod na "snapshot" metodu – bot načte všechny viditelné komentáře naráz a rychleji scrolluje, místo čekání na každý element zvlášť.
+
+3. Řešení Profilových Fotek (High-Res):
+   - Problém: X v DOMu často poskytuje jen náhledy (`_bigger`, 73x73px), které se externě nenačítají.
+   - Řešení: Implementována inteligentní detekce. Pokud bot vidí URL s nízkou kvalitou, fyzicky klikne na fotku, otevře modální okno (Media Viewer), extrahuje originál (`400x400`+) a okno zavře.
+   - Přidána podpora pro čtvercové avatary (firemní účty se zlatou fajfkou).
+
+4. Databáze:
+   - Automatická migrace: Do tabulky `users` přidán sloupec `profile_pic_url`.

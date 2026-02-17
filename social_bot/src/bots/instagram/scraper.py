@@ -1,6 +1,7 @@
 from src.utils.human_input import delay, human_typing
 from src.core.database import DatabaseManager
 import re
+import time
 
 class InstagramScraper:
     def __init__(self, bot):
@@ -72,7 +73,7 @@ class InstagramScraper:
         processed_comment_ids = set()
         max_comments = 50
 
-        # ZMĚNA 1: JavaScriptová injekce pro okamžitou a neomylnou extrakci komentářů
+        # --- JS INJEKCE PRO KOMENTÁŘE (ZACHOVÁNO) ---
         js_extract_comments = """
         function extract() {
             var results = [];
@@ -83,7 +84,6 @@ class InstagramScraper:
                 if (!timestamp) continue;
                 
                 var block = timeEl;
-                // Vystoupáme dostatečně vysoko, abychom zabrali celý jeden komentář
                 for(var j=0; j<8; j++) {
                     if(block.parentElement) block = block.parentElement;
                 }
@@ -133,7 +133,6 @@ class InstagramScraper:
         return extract();
         """
 
-        # ZMĚNA 2: Přesně cílené scrollování malého okna
         js_scroll_comments = """
         var times = document.querySelectorAll('time');
         if (times.length > 1) {
@@ -168,7 +167,6 @@ class InstagramScraper:
                     delay(1.5, 2.5)
             except: pass
 
-            # Spuštění Injektoru
             extracted_data = self.bot.page.run_js(js_extract_comments)
             
             if extracted_data:
@@ -180,21 +178,15 @@ class InstagramScraper:
                     c_text = data.get('text')
                     likes_str = data.get('likesStr', "0")
                     
-                    # Vyřazení času příspěvku (aby se nám autor netěžil jako komentář)
-                    if not c_timestamp or c_timestamp == timestamp: 
-                        continue
-                    if not author_username:
-                        continue
+                    if not c_timestamp or c_timestamp == timestamp: continue
+                    if not author_username: continue
                         
                     platform_comment_id = f"{platform_post_id}_{author_username}_{c_timestamp}"
                     
-                    if platform_comment_id in processed_comment_ids: 
-                        continue
+                    if platform_comment_id in processed_comment_ids: continue
                     processed_comment_ids.add(platform_comment_id)
                     
-                    if not c_text: 
-                        c_text = "[OBSAHUJE MÉDIA/GIF]"
-                        
+                    if not c_text: c_text = "[OBSAHUJE MÉDIA/GIF]"
                     c_likes = self.parse_number(likes_str)
                     
                     self.db.upsert_comment(
@@ -210,28 +202,27 @@ class InstagramScraper:
                         replies_count=0,
                         media_url=None
                     )
-                    
                     comments_collected += 1
-                    if comments_collected % 10 == 0 or comments_collected == max_comments:
-                        print(f"  -> [IG-SCRAPER] Staženo {comments_collected}/{max_comments} komentářů...")
 
-            if comments_collected >= max_comments: 
-                break
-
-            # Posunutí správného okna
+            if comments_collected >= max_comments: break
             try:
                 self.bot.page.run_js(js_scroll_comments)
             except: pass
-            
             delay(1.5, 2.5)
 
-    def scrape_profile(self, target_query):
-        print(f"[IG-SCRAPER] Zahajuji simulaci lidského vyhledávání: '{target_query}'")
+    def scrape_profile(self, target_query, limit=10):
+        """
+        Hlavní metoda pro těžbu profilu.
+        limit: int -> Počet příspěvků ke stažení. Pokud -1, stahuje vše.
+        """
+        limit_text = "NEOMEZENO" if limit == -1 else str(limit)
+        print(f"[IG-SCRAPER] Zahajuji simulaci lidského vyhledávání: '{target_query}' (Limit: {limit_text})")
 
         if "instagram.com" not in self.bot.page.url:
             self.bot.open_url(self.bot.base_url)
             delay(2, 4)
 
+        # 1. VYHLEDÁVÁNÍ (Simulace)
         search_icon = self.bot.page.ele('css:svg[aria-label="Hledat"]', timeout=2)
         if not search_icon:
             search_icon = self.bot.page.ele('css:svg[aria-label="Search"]', timeout=2)
@@ -269,32 +260,27 @@ class InstagramScraper:
                             if path and '/' not in path:
                                 if path not in ignore_list and path != self.bot.username:
                                     if link.text.strip():
-                                        print(f"[IG-SCRAPER] První profil ve výsledcích nalezen (/{path}/), přecházím na něj.")
+                                        print(f"[IG-SCRAPER] Nalezen profil (/{path}/), přecházím na něj.")
                                         link.click(by_js=True)
                                         found_profile = True
                                         delay(4, 6)
                                         break 
                 
                 if not found_profile:
-                    print("[WARNING] Profil nebyl ve výsledcích vyhledávání nalezen, používám záchrannou Direct URL.")
+                    print("[WARNING] Profil nenalezen v našeptávači, zkouším Direct URL.")
                     clean_target = target_query.replace('@', '').replace(' ', '')
                     self.bot.open_url(f"{self.bot.base_url}{clean_target}/")
                     delay(4, 6)
             else:
-                print("[WARNING] Vyhledávací pole nenalezeno, používám záchrannou Direct URL.")
-                clean_target = target_query.replace('@', '').replace(' ', '')
-                self.bot.open_url(f"{self.bot.base_url}{clean_target}/")
-                delay(4, 6)
+                self.bot.open_url(f"{self.bot.base_url}{target_query.replace('@', '').replace(' ', '')}/")
         else:
-            print("[WARNING] Ikona lupy nenalezena, používám záchrannou Direct URL.")
-            clean_target = target_query.replace('@', '').replace(' ', '')
-            self.bot.open_url(f"{self.bot.base_url}{clean_target}/")
+            self.bot.open_url(f"{self.bot.base_url}{target_query.replace('@', '').replace(' ', '')}/")
             delay(4, 6)
 
+        # 2. ULOŽENÍ UŽIVATELE
         current_url = self.bot.page.url
         try:
             actual_username = current_url.split('instagram.com/')[-1].split('/')[0].split('?')[0]
-            print(f"[IG-SCRAPER] Skutečný handle účtu identifikován jako: @{actual_username}")
         except:
             actual_username = target_query.replace('@', '').replace(' ', '')
 
@@ -319,41 +305,71 @@ class InstagramScraper:
         )
         print(f"[IG-SCRAPER] Profil uložen do DB (Sledujících: {followers_count}). Interní ID: {user_id}")
 
-        print("[IG-SCRAPER] Prohledávám příspěvky na zdi...")
-        
-        self.bot.page.scroll.down(500)
-        
-        try:
-            self.bot.page.wait.ele_loaded('tag:article', timeout=5)
-        except:
-            pass
-            
-        delay(2, 4)
-        
-        all_links = self.bot.page.eles('tag:a', timeout=5)
+        # 3. SBĚR URL PŘÍSPĚVKŮ (RESPEKTUJE LIMIT)
+        print("[IG-SCRAPER] Skenuji zeď a sbírám URL příspěvků...")
         
         urls_to_scrape = []
-        for link in all_links:
-            href = link.attr('href')
-            if href and ('/p/' in href or '/reel/' in href):
-                clean_href = href.split('?')[0]
-                
-                if clean_href.startswith('/'):
-                    full_url = f"https://www.instagram.com{clean_href}"
-                else:
-                    full_url = clean_href
-                    
-                if full_url not in urls_to_scrape:
-                    urls_to_scrape.append(full_url)
-                    
-            if len(urls_to_scrape) >= 3:
-                break
+        scroll_attempts_without_new = 0
         
-        if not urls_to_scrape:
-            print("[IG-SCRAPER] Na profilu nebyly nalezeny žádné příspěvky nebo je profil uzamčen (soukromý).")
+        # Pojistka proti nekonečné smyčce, pokud limit je -1
+        max_scroll_loops = 500 if limit == -1 else 100 
+        
+        loop_counter = 0
+        while True:
+            # a) Sbírání
+            all_links = self.bot.page.eles('tag:a', timeout=2)
+            new_found = False
+            
+            for link in all_links:
+                href = link.attr('href')
+                if href and ('/p/' in href or '/reel/' in href):
+                    clean_href = href.split('?')[0]
+                    full_url = f"https://www.instagram.com{clean_href}" if clean_href.startswith('/') else clean_href
+                    
+                    if full_url not in urls_to_scrape:
+                        urls_to_scrape.append(full_url)
+                        new_found = True
+                        
+                        # Kontrola limitu okamžitě po přidání
+                        if limit != -1 and len(urls_to_scrape) >= limit:
+                            break
+            
+            print(f"  -> Nalezeno {len(urls_to_scrape)} unikátních příspěvků...")
+
+            # b) Podmínka ukončení (Limit)
+            if limit != -1 and len(urls_to_scrape) >= limit:
+                print(f"[IG-SCRAPER] Dosažen požadovaný limit {limit}.")
+                break
+            
+            # c) Podmínka ukončení (Konec stránky)
+            if not new_found:
+                scroll_attempts_without_new += 1
+                if scroll_attempts_without_new >= 4:
+                    print("[IG-SCRAPER] Zdá se, že jsme na konci profilu (žádné nové příspěvky).")
+                    break
+            else:
+                scroll_attempts_without_new = 0
+
+            # d) Bezpečnostní pojistka
+            loop_counter += 1
+            if limit == -1 and loop_counter > max_scroll_loops:
+                print("[WARNING] Dosažen interní bezpečnostní limit scrollu.")
+                break
+
+            # e) Scroll
+            self.bot.page.scroll.down(800)
+            delay(1.5, 3.0)
+
+        # 4. ITERACE A TĚŽBA DETAILŮ
+        final_urls = urls_to_scrape[:limit] if limit != -1 else urls_to_scrape
+        
+        if not final_urls:
+            print("[IG-SCRAPER] Nebyly nalezeny žádné příspěvky (profil je soukromý nebo prázdný).")
             return
 
-        for url in urls_to_scrape:
+        print(f"\n[IG-SCRAPER] Zahajuji hloubkovou těžbu {len(final_urls)} příspěvků...")
+        for i, url in enumerate(final_urls):
+            print(f"--- Zpracovávám {i+1} z {len(final_urls)} ---")
             try:
                 self.scrape_post_and_comments(user_id, url)
             except Exception as e:

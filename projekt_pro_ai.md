@@ -25,6 +25,7 @@ if __name__ == "__main__":
         print("\n[INFO] Aplikace byla ukončena uživatelem (CTRL+C).")
     except Exception as e:
         print(f"\n[CRITICAL ERROR] Aplikace spadla: {e}")
+        
 ```
 
 ## Soubor: social_bot\test_profile.py
@@ -881,86 +882,95 @@ class XScraper:
 
         print(f"[X-SCRAPER] Jsem na profilu: @{actual_username}")
         
+        # --- TĚŽBA METADAT (NOVÉ) ---
         try:
+            # Display Name + Verifikace
             display_name_ele = self.bot.page.ele('@data-testid=UserName', timeout=3)
-            display_name = display_name_ele.text.split('\n')[0] if display_name_ele else actual_username
-            
+            if display_name_ele:
+                display_name = display_name_ele.text.split('\n')[0]
+                # Kontrola modré fajfky
+                is_verified = 1 if display_name_ele.ele('tag:svg@aria-label=Verified account', timeout=0.1) else 0
+            else:
+                display_name = actual_username
+                is_verified = 0
+
+            # Bio
             bio_ele = self.bot.page.ele('@data-testid=UserDescription', timeout=2)
             bio = bio_ele.text if bio_ele else ""
             
+            # Location (Lokace)
+            loc_ele = self.bot.page.ele('@data-testid=UserLocation', timeout=1)
+            location = loc_ele.text if loc_ele else None
+
+            # Website (Link in Bio)
+            web_ele = self.bot.page.ele('@data-testid=UserUrl', timeout=1)
+            website = web_ele.text if web_ele else None
+
+            # Joined Date (Datum registrace)
+            join_ele = self.bot.page.ele('@data-testid=UserJoinDate', timeout=1)
+            joined_date = join_ele.text if join_ele else None
+
+            # Followers (Sledující)
             followers_ele = self.bot.page.ele('xpath://a[contains(@href, "/followers")]/span[1]|//a[contains(@href, "/verified_followers")]/span[1]', timeout=2)
             followers_text = followers_ele.text if followers_ele else "0"
             followers_count = self.parse_number(followers_text)
 
-            # --- INTELLIGENT PROFILE PIC SCRAPER ---
+            # Following (Sledovaní) - NOVÉ
+            following_ele = self.bot.page.ele('xpath://a[contains(@href, "/following")]/span[1]', timeout=2)
+            following_text = following_ele.text if following_ele else "0"
+            following_count = self.parse_number(following_text)
+
+            # Banner (Hlavička) - NOVÉ
+            banner_url = None
+            try:
+                banner_link = self.bot.page.ele('xpath://a[contains(@href, "/header_photo")]//img', timeout=1)
+                if banner_link: banner_url = banner_link.attr('src')
+            except: pass
+
+            # Profile Pic (Zachováno)
             profile_pic_url = None
             try:
-                # 1. Zkusíme kulatou profilovku
                 avatar_img = self.bot.page.ele('css:img[alt="Opens profile photo"]', timeout=1)
-                
-                # 2. Zkusíme čtvercovou profilovku (PlayStation a jiné firmy)
-                if not avatar_img:
-                    avatar_img = self.bot.page.ele('css:img[alt="Square profile picture and Opens profile photo"]', timeout=1)
-                
-                # 3. Fallback kontejner
-                if not avatar_img:
-                    avatar_img = self.bot.page.ele('xpath://div[contains(@data-testid, "UserAvatar-Container")]//img', timeout=1)
+                if not avatar_img: avatar_img = self.bot.page.ele('css:img[alt="Square profile picture and Opens profile photo"]', timeout=1)
+                if not avatar_img: avatar_img = self.bot.page.ele('xpath://div[contains(@data-testid, "UserAvatar-Container")]//img', timeout=1)
                 
                 if avatar_img:
                     initial_url = avatar_img.attr('src')
                     profile_pic_url = initial_url 
-
-                    # KONTROLA KVALITY: Pouze pokud je to "špatná" verze, klikáme
+                    # HD logika (zkrácená)
                     if initial_url and any(x in initial_url for x in ['_bigger', '_mini', '_normal']):
-                        print(f"[X-SCRAPER] Detekována nízká kvalita ({initial_url.split('/')[-1]}), klikám pro HD verzi...")
-                        
-                        # Hledáme odkaz na fotku
                         photo_link = self.bot.page.ele('xpath://div[contains(@data-testid, "UserAvatar-Container")]//a[contains(@href, "/photo")]', timeout=2)
-                        
                         if photo_link:
                             photo_link.click()
-                            
-                            # Čekáme na HD obrázek v modálu
                             large_img = self.bot.page.ele('xpath://div[@data-testid="swipe-to-dismiss"]//img', timeout=3)
-                            
-                            if large_img:
-                                profile_pic_url = large_img.attr('src')
-                                print(f"[X-SCRAPER] High-res URL získána: {profile_pic_url[:40]}...")
-                            
-                            # Zavření modalu
+                            if large_img: profile_pic_url = large_img.attr('src')
                             close_btn = self.bot.page.ele('css:div[aria-label="Close"]', timeout=1) or self.bot.page.ele('css:div[aria-label="Zavřít"]', timeout=1)
-                            if close_btn:
-                                close_btn.click()
-                            else:
-                                self.bot.page.back() # Spolehlivý fallback
-                            
-                            delay(0.5, 1)
-                        else:
-                            print("[X-SCRAPER] Nelze kliknout na fotku, zůstávám u náhledu.")
-                    else:
-                        print(f"[X-SCRAPER] URL profilovky je v pořádku.")
-
-            except Exception as e:
-                print(f"[X-SCRAPER] Chyba při zpracování fotky: {e}")
-                if "/photo" in self.bot.page.url:
-                    self.bot.page.back()
+                            if close_btn: close_btn.click()
+                            else: self.bot.page.back()
+                            delay(0.5)
+            except: pass
 
         except Exception as e:
             print(f"[ERROR] Chyba čtení metadat: {e}")
-            display_name = actual_username
-            bio = ""
-            followers_count = 0
-            profile_pic_url = None
+            display_name = actual_username; bio = ""; followers_count = 0; following_count = 0
+            location = None; website = None; joined_date = None; is_verified = 0; banner_url = None; profile_pic_url = None
 
+        # Uložení do DB s novými poli
         user_id = self.db.upsert_user(
             platform="X", 
             username=actual_username, 
             display_name=display_name, 
             bio=bio, 
             followers_count=followers_count, 
-            profile_pic_url=profile_pic_url
+            following_count=following_count, # NOVÉ
+            joined_date=joined_date,         # NOVÉ
+            location=location,               # NOVÉ
+            website=website,                 # NOVÉ
+            is_verified=is_verified,         # NOVÉ
+            profile_pic_url=profile_pic_url,
+            banner_url=banner_url            # NOVÉ
         )
-        print(f"[X-SCRAPER] Uživatel @{actual_username} uložen.")
+        print(f"[X-SCRAPER] Uživatel @{actual_username} uložen. (Verifikace: {is_verified})")
 
         # 5. TĚŽBA PŘÍSPĚVKŮ
         print("[X-SCRAPER] Sbírám příspěvky...")
@@ -1171,6 +1181,12 @@ import uuid
 from pathlib import Path
 from datetime import datetime, timezone
 
+import sqlite3
+import os
+import uuid
+from pathlib import Path
+from datetime import datetime, timezone
+
 class DatabaseManager:
     def __init__(self, db_name="osint.db"):
         current_file = Path(__file__).resolve()
@@ -1185,14 +1201,14 @@ class DatabaseManager:
         
         self._connect()
         self._create_tables()
-        self._migrate_db() # Kontrola nových sloupců
+        self._migrate_db() # Důležité: Přidá nové sloupce do existující DB
 
     def _connect(self):
         self.conn = sqlite3.connect(str(self.db_path), timeout=10) 
         self.cursor = self.conn.cursor()
 
     def _create_tables(self):
-        # TABULKA USERS - přidán sloupec profile_pic_url
+        # TABULKA USERS - Rozšířená o metadata
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 id TEXT PRIMARY KEY,
@@ -1202,7 +1218,13 @@ class DatabaseManager:
                 display_name TEXT,
                 bio TEXT,
                 followers_count INTEGER,
+                following_count INTEGER,       -- NOVÉ
+                joined_date TEXT,              -- NOVÉ
+                location TEXT,                 -- NOVÉ
+                website TEXT,                  -- NOVÉ
+                is_verified INTEGER DEFAULT 0, -- NOVÉ (Bonus)
                 profile_pic_url TEXT, 
+                banner_url TEXT,               -- NOVÉ (Bonus)
                 last_scraped TIMESTAMP,
                 UNIQUE(platform, username)
             )
@@ -1263,18 +1285,35 @@ class DatabaseManager:
         self.conn.commit()
 
     def _migrate_db(self):
-        """Zkontroluje, zda existuje sloupec profile_pic_url, a pokud ne, přidá ho."""
-        try:
-            self.cursor.execute("SELECT profile_pic_url FROM users LIMIT 1")
-        except sqlite3.OperationalError:
-            print("[DB] Migrace: Přidávám sloupec profile_pic_url do tabulky users.")
-            try:
-                self.cursor.execute("ALTER TABLE users ADD COLUMN profile_pic_url TEXT")
-                self.conn.commit()
-            except Exception as e:
-                print(f"[DB ERROR] Nepodařilo se přidat sloupec: {e}")
+        """Zkontroluje a přidá chybějící sloupce."""
+        required_columns = {
+            "following_count": "INTEGER",
+            "joined_date": "TEXT",
+            "location": "TEXT",
+            "website": "TEXT",
+            "is_verified": "INTEGER DEFAULT 0",
+            "banner_url": "TEXT",
+            "profile_pic_url": "TEXT"
+        }
 
-    def upsert_user(self, platform, username, platform_user_id=None, display_name=None, bio=None, followers_count=None, profile_pic_url=None):
+        try:
+            self.cursor.execute("PRAGMA table_info(users)")
+            existing = [row[1] for row in self.cursor.fetchall()]
+
+            for col, type_ in required_columns.items():
+                if col not in existing:
+                    print(f"[DB] Migrace: Přidávám sloupec '{col}'...")
+                    try: self.cursor.execute(f"ALTER TABLE users ADD COLUMN {col} {type_}")
+                    except: pass
+            self.conn.commit()
+        except Exception as e:
+            print(f"[DB ERROR] Migrace selhala: {e}")
+
+    def upsert_user(self, platform, username, platform_user_id=None, display_name=None, 
+                    bio=None, followers_count=None, following_count=None, 
+                    joined_date=None, location=None, website=None, is_verified=0,
+                    profile_pic_url=None, banner_url=None):
+        
         now = datetime.now(timezone.utc).isoformat()
         
         self.cursor.execute('SELECT id FROM users WHERE platform = ? AND username = ?', (platform, username))
@@ -1288,16 +1327,29 @@ class DatabaseManager:
                     display_name = COALESCE(?, display_name),
                     bio = COALESCE(?, bio),
                     followers_count = COALESCE(?, followers_count),
+                    following_count = COALESCE(?, following_count),
+                    joined_date = COALESCE(?, joined_date),
+                    location = COALESCE(?, location),
+                    website = COALESCE(?, website),
+                    is_verified = ?,
                     profile_pic_url = COALESCE(?, profile_pic_url),
+                    banner_url = COALESCE(?, banner_url),
                     last_scraped = ?
                 WHERE id = ?
-            ''', (platform_user_id, display_name, bio, followers_count, profile_pic_url, now, user_id))
+            ''', (platform_user_id, display_name, bio, followers_count, following_count, 
+                  joined_date, location, website, is_verified, profile_pic_url, banner_url, now, user_id))
         else:
             user_id = str(uuid.uuid4())
             self.cursor.execute('''
-                INSERT INTO users (id, platform, platform_user_id, username, display_name, bio, followers_count, profile_pic_url, last_scraped)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (user_id, platform, platform_user_id, username, display_name, bio, followers_count, profile_pic_url, now))
+                INSERT INTO users (
+                    id, platform, platform_user_id, username, display_name, bio, 
+                    followers_count, following_count, joined_date, location, website, is_verified,
+                    profile_pic_url, banner_url, last_scraped
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (user_id, platform, platform_user_id, username, display_name, bio, 
+                  followers_count, following_count, joined_date, location, website, is_verified,
+                  profile_pic_url, banner_url, now))
         
         self.conn.commit()
         return user_id
@@ -1346,12 +1398,9 @@ class DatabaseManager:
         Pokusí se najít username v DB na základě query (shoda s username nebo display_name).
         Vrací username (str) nebo None.
         """
-        # Vyčistíme query od zavináče pro hledání
         clean_q = query.replace('@', '').strip()
-        search_pattern = f"%{clean_q}%"
         
         try:
-            # Hledáme přesnou shodu prioritně, pak částečnou
             self.cursor.execute('''
                 SELECT username FROM users 
                 WHERE platform = 'X' AND (LOWER(username) = LOWER(?) OR LOWER(display_name) = LOWER(?))
@@ -1361,11 +1410,6 @@ class DatabaseManager:
             
             if row:
                 return row[0]
-                
-            # Pokud není přesná shoda, zkusíme LIKE (opatrně, ať nenajdeme nesmysly)
-            # Zde to raději necháme jen na přesnou shodu nebo velmi blízkou, 
-            # abychom omylem nepoužili "Elon Musk Parody" pro dotaz "Elon Musk".
-            # Pro tuto chvíli stačí přímá shoda jména.
             return None
             
         except Exception as e:
@@ -1392,6 +1436,7 @@ import requests
 from io import BytesIO
 from PIL import Image
 from pathlib import Path
+from datetime import datetime
 from src.bots.instagram.bot import InstagramBot
 from src.bots.x.bot import XBot
 
@@ -1419,7 +1464,14 @@ class PrintLogger:
 
     def _insert_text(self, text):
         self.textbox.configure(state="normal")
-        self.textbox.insert(tk.END, text)
+        
+        # Pokud text obsahuje obsah (není to jen prázdný řádek/odřádkování), přidej čas
+        if text.strip():
+            current_time = datetime.now().strftime("[%H:%M:%S]")
+            self.textbox.insert(tk.END, f"{current_time} {text}")
+        else:
+            self.textbox.insert(tk.END, text)
+            
         self.textbox.see(tk.END)
         self.textbox.configure(state="disabled")
 
@@ -1449,6 +1501,7 @@ class App(ctk.CTk):
         self.load_users()
         self.current_bot = None 
         self.is_running = False
+        self.all_profiles_data = []
 
         # --- HLAVNÍ LAYOUT (2 Sloupce) ---
         self.grid_columnconfigure(1, weight=1)
@@ -1504,11 +1557,9 @@ class App(ctk.CTk):
         self.status_label = ctk.CTkLabel(self.sidebar, text="● Připraveno", text_color="#2eb85c", font=("Segoe UI", 12))
         self.status_label.pack(side="bottom", pady=(5, 20), padx=20, anchor="w")
 
-        # --- NOVÉ: PROGRESS BAR ---
-        # Umístíme ho nad status label (protože pack 'bottom' skládá odspodu nahoru, musíme ho přidat PO status labelu aby byl NAD ním)
+        # PROGRESS BAR
         self.progress_bar = ctk.CTkProgressBar(self.sidebar, width=200, height=8, corner_radius=4, progress_color=c_primary)
         self.progress_bar.set(0)
-        # Zatím ho nezobrazíme (packneme ho až při startu)
 
     def create_nav_btn(self, text, view_name):
         btn = ctk.CTkButton(
@@ -1542,7 +1593,7 @@ class App(ctk.CTk):
             self.refresh_db()
 
     # =========================================================================
-    # PROFILES VIEW (KARTY) - ZACHOVÁNO
+    # PROFILES VIEW (KARTY)
     # =========================================================================
     def setup_profiles_view(self):
         self.frame_profiles.grid_columnconfigure(0, weight=1)
@@ -1573,8 +1624,12 @@ class App(ctk.CTk):
         if not self.db_path.exists(): return
         try:
             conn = sqlite3.connect(str(self.db_path)); conn.row_factory = sqlite3.Row; cur = conn.cursor()
-            try: cur.execute("SELECT * FROM users ORDER BY last_scraped DESC")
-            except sqlite3.OperationalError: cur.execute("SELECT id, platform, username, display_name, bio, followers_count, last_scraped FROM users ORDER BY last_scraped DESC")
+            # Načteme vše (*) abychom měli přístup k novým sloupcům (location, following_count atd.)
+            try: 
+                cur.execute("SELECT * FROM users ORDER BY last_scraped DESC")
+            except sqlite3.OperationalError: 
+                cur.execute("SELECT id, platform, username, display_name, bio, followers_count, profile_pic_url, last_scraped FROM users ORDER BY last_scraped DESC")
+            
             self.all_profiles_data = [dict(row) for row in cur.fetchall()]; conn.close()
             self.filter_profiles()
         except Exception as e: print(f"[GUI ERROR] Nelze načíst profily: {e}")
@@ -1591,27 +1646,71 @@ class App(ctk.CTk):
         card.pack(fill="x", pady=5, padx=5)
         card.grid_columnconfigure(1, weight=1) 
         
-        img_widget = ctk.CTkLabel(card, text="?", width=80, height=80, corner_radius=10, fg_color="#444")
-        if user.get('profile_pic_url'): threading.Thread(target=self.load_image_async, args=(user.get('profile_pic_url'), img_widget), daemon=True).start()
-        img_widget.grid(row=0, column=0, rowspan=2, padx=15, pady=15)
+        # 1. Avatar
+        img_widget = ctk.CTkLabel(card, text="", width=80, height=80, corner_radius=10, fg_color="#444")
+        if user.get('profile_pic_url'): 
+            threading.Thread(target=self.load_image_async, args=(user.get('profile_pic_url'), img_widget), daemon=True).start()
+        img_widget.grid(row=0, column=0, rowspan=4, padx=15, pady=15, sticky="n")
 
+        # 2. Hlavička (Jméno + Verifikace + Handle)
         info_frame = ctk.CTkFrame(card, fg_color="transparent")
         info_frame.grid(row=0, column=1, sticky="nw", pady=(15, 0), padx=5)
-        ctk.CTkLabel(info_frame, text=user.get('display_name') or user['username'], font=("Segoe UI", 16, "bold"), text_color="white").pack(anchor="w")
-        ctk.CTkLabel(info_frame, text=f"@{user['username']} • {str(user.get('platform')).upper()}", font=("Segoe UI", 13), text_color=c_text_dim).pack(anchor="w")
+        
+        # Jméno
+        name_text = user.get('display_name') or user['username']
+        lbl_name = ctk.CTkLabel(info_frame, text=name_text, font=("Segoe UI", 16, "bold"), text_color="white")
+        lbl_name.pack(side="left")
 
+        # Verifikace
+        if user.get('is_verified') == 1:
+            lbl_ver = ctk.CTkLabel(info_frame, text="☑", font=("Segoe UI", 16), text_color="#1DA1F2")
+            lbl_ver.pack(side="left", padx=(5, 0))
+
+        # Handle a Platforma
+        handle_text = f"@{user['username']} • {str(user.get('platform')).upper()}"
+        ctk.CTkLabel(info_frame, text=handle_text, font=("Segoe UI", 13), text_color=c_text_dim).pack(side="left", padx=(10, 0))
+
+        # 3. Statistiky (Followers / Following)
         stats_frame = ctk.CTkFrame(card, fg_color="transparent")
-        stats_frame.grid(row=1, column=1, sticky="nw", pady=(5, 15), padx=5)
+        stats_frame.grid(row=1, column=1, sticky="nw", pady=(5, 5), padx=5)
+        
         f_count = user.get('followers_count', 0)
-        ctk.CTkLabel(stats_frame, text=f"{f_count:,} followers" if f_count is not None else "Unknown", font=("Segoe UI", 12, "bold"), text_color=c_primary).pack(side="left", padx=(0, 15))
-        last_s = str(user.get('last_scraped')).split('T')[0] if user.get('last_scraped') else "?"
-        ctk.CTkLabel(stats_frame, text=f"Scraped: {last_s}", font=("Segoe UI", 12), text_color=c_text_dim).pack(side="left")
+        fol_count = user.get('following_count', 0)
+        
+        def fmt(num): return f"{num:,}".replace(",", " ") if num is not None else "0"
 
+        # Followers
+        ctk.CTkLabel(stats_frame, text=fmt(f_count), font=("Segoe UI", 13, "bold"), text_color=c_text_main).pack(side="left")
+        ctk.CTkLabel(stats_frame, text="Followers", font=("Segoe UI", 13), text_color=c_text_dim).pack(side="left", padx=(3, 15))
+        
+        # Following
+        ctk.CTkLabel(stats_frame, text=fmt(fol_count), font=("Segoe UI", 13, "bold"), text_color=c_text_main).pack(side="left")
+        ctk.CTkLabel(stats_frame, text="Following", font=("Segoe UI", 13), text_color=c_text_dim).pack(side="left", padx=(3, 0))
+
+        # 4. Bio
         bio = user.get('bio')
-        if bio: ctk.CTkLabel(card, text=(bio.replace('\n', ' ')[:80] + "...") if len(bio)>80 else bio, font=("Segoe UI", 12, "italic"), text_color="gray").grid(row=2, column=1, sticky="w", padx=5, pady=(0, 15))
+        if bio: 
+            short_bio = (bio.replace('\n', ' ')[:90] + "...") if len(bio)>90 else bio
+            ctk.CTkLabel(card, text=short_bio, font=("Segoe UI", 12, "italic"), text_color="#b0b0b0", anchor="w").grid(row=2, column=1, sticky="w", padx=5, pady=(0, 5))
+
+        # 5. Metadata řádek (Lokace, Web, Joined)
+        meta_frame = ctk.CTkFrame(card, fg_color="transparent")
+        meta_frame.grid(row=3, column=1, sticky="nw", pady=(0, 15), padx=5)
+        
+        meta_items = []
+        if user.get('location'): meta_items.append(f"📍 {user['location']}")
+        if user.get('website'): meta_items.append(f"🔗 {user['website']}")
+        if user.get('joined_date'): meta_items.append(f"📅 {user['joined_date']}")
+        
+        meta_text = "   ".join(meta_items)
+        if meta_text:
+            ctk.CTkLabel(meta_frame, text=meta_text, font=("Segoe UI", 11), text_color=c_text_dim).pack(side="left")
+
+        # Datum stažení vpravo dole
+        last_s = str(user.get('last_scraped')).split('T')[0] if user.get('last_scraped') else "?"
+        ctk.CTkLabel(card, text=f"Upd: {last_s}", font=("Segoe UI", 10), text_color="#555").grid(row=3, column=1, sticky="e", padx=15, pady=(0, 15))
 
     def load_image_async(self, url, label_widget):
-        """Stáhne obrázek, ořízne na čtverec a aktualizuje label. Používá cache."""
         if url in self.image_cache:
             ctk_image = self.image_cache[url]
         else:
@@ -1621,11 +1720,8 @@ class App(ctk.CTk):
                     img_data = BytesIO(response.content)
                     pil_img = Image.open(img_data)
                     
-                    # --- FIX: CENTER CROP NA ČTVEREC (1:1) ---
-                    # Zjistíme rozměry
+                    # Center Crop na čtverec
                     width, height = pil_img.size
-                    
-                    # Pokud není čtvercový, ořízneme střed
                     if width != height:
                         new_size = min(width, height)
                         left = (width - new_size) / 2
@@ -1634,10 +1730,7 @@ class App(ctk.CTk):
                         bottom = (height + new_size) / 2
                         pil_img = pil_img.crop((left, top, right, bottom))
                     
-                    # --- RESIZE A VYTVOŘENÍ CTK IMAGE ---
-                    # Používáme LANCZOS pro nejvyšší kvalitu zmenšení
                     pil_img = pil_img.resize((80, 80), Image.Resampling.LANCZOS)
-                    
                     ctk_image = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(80, 80))
                     self.image_cache[url] = ctk_image
                 else:
@@ -1645,8 +1738,6 @@ class App(ctk.CTk):
             except:
                 return
 
-        # Update GUI (musí být v hlavním vlákně)
-        # Nastavíme text="" aby nezabíral místo a fg_color="transparent", aby bylo vidět jen foto (pokud by mělo průhlednost)
         self.after(0, lambda: label_widget.configure(image=ctk_image, text="", fg_color="transparent"))
 
     # =========================================================================

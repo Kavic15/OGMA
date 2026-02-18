@@ -2,7 +2,7 @@ import os
 
 # Konfigurace - uprav podle potřeby
 EXCLUDE_DIRS = {'.git', 'venv', '.venv', '__pycache__', '.idea', '.vscode'}
-EXCLUDE_FILES = {'projekt_pro_ai.md', '.gitignore', 'users.json', 'markdown.py', 'diary.txt', 'pozn.txt', 'top50.txt'}
+EXCLUDE_FILES = {'projekt_pro_ai.md', '.gitignore', 'users.json', 'markdown.py', 'diary.txt', 'pozn.txt', 'top50.txt', 'topCZ.txt', 'html.html','pozn.txt'}
 EXTENSIONS = {'.py', '.txt', '.yaml', '.yml', '.sql', '.html', '.css'}
 
 def project_to_markdown(output_file):

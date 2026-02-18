@@ -11,6 +11,7 @@ import requests
 from io import BytesIO
 from PIL import Image
 from pathlib import Path
+from datetime import datetime
 from src.bots.instagram.bot import InstagramBot
 from src.bots.x.bot import XBot
 
@@ -38,7 +39,14 @@ class PrintLogger:
 
     def _insert_text(self, text):
         self.textbox.configure(state="normal")
-        self.textbox.insert(tk.END, text)
+        
+        # Pokud text obsahuje obsah (není to jen prázdný řádek/odřádkování), přidej čas
+        if text.strip():
+            current_time = datetime.now().strftime("[%H:%M:%S]")
+            self.textbox.insert(tk.END, f"{current_time} {text}")
+        else:
+            self.textbox.insert(tk.END, text)
+            
         self.textbox.see(tk.END)
         self.textbox.configure(state="disabled")
 
@@ -68,6 +76,7 @@ class App(ctk.CTk):
         self.load_users()
         self.current_bot = None 
         self.is_running = False
+        self.all_profiles_data = []
 
         # --- HLAVNÍ LAYOUT (2 Sloupce) ---
         self.grid_columnconfigure(1, weight=1)
@@ -123,11 +132,9 @@ class App(ctk.CTk):
         self.status_label = ctk.CTkLabel(self.sidebar, text="● Připraveno", text_color="#2eb85c", font=("Segoe UI", 12))
         self.status_label.pack(side="bottom", pady=(5, 20), padx=20, anchor="w")
 
-        # --- NOVÉ: PROGRESS BAR ---
-        # Umístíme ho nad status label (protože pack 'bottom' skládá odspodu nahoru, musíme ho přidat PO status labelu aby byl NAD ním)
+        # PROGRESS BAR
         self.progress_bar = ctk.CTkProgressBar(self.sidebar, width=200, height=8, corner_radius=4, progress_color=c_primary)
         self.progress_bar.set(0)
-        # Zatím ho nezobrazíme (packneme ho až při startu)
 
     def create_nav_btn(self, text, view_name):
         btn = ctk.CTkButton(
@@ -161,7 +168,7 @@ class App(ctk.CTk):
             self.refresh_db()
 
     # =========================================================================
-    # PROFILES VIEW (KARTY) - ZACHOVÁNO
+    # PROFILES VIEW (KARTY)
     # =========================================================================
     def setup_profiles_view(self):
         self.frame_profiles.grid_columnconfigure(0, weight=1)
@@ -192,8 +199,12 @@ class App(ctk.CTk):
         if not self.db_path.exists(): return
         try:
             conn = sqlite3.connect(str(self.db_path)); conn.row_factory = sqlite3.Row; cur = conn.cursor()
-            try: cur.execute("SELECT * FROM users ORDER BY last_scraped DESC")
-            except sqlite3.OperationalError: cur.execute("SELECT id, platform, username, display_name, bio, followers_count, last_scraped FROM users ORDER BY last_scraped DESC")
+            # Načteme vše (*) abychom měli přístup k novým sloupcům (location, following_count atd.)
+            try: 
+                cur.execute("SELECT * FROM users ORDER BY last_scraped DESC")
+            except sqlite3.OperationalError: 
+                cur.execute("SELECT id, platform, username, display_name, bio, followers_count, profile_pic_url, last_scraped FROM users ORDER BY last_scraped DESC")
+            
             self.all_profiles_data = [dict(row) for row in cur.fetchall()]; conn.close()
             self.filter_profiles()
         except Exception as e: print(f"[GUI ERROR] Nelze načíst profily: {e}")
@@ -210,27 +221,71 @@ class App(ctk.CTk):
         card.pack(fill="x", pady=5, padx=5)
         card.grid_columnconfigure(1, weight=1) 
         
-        img_widget = ctk.CTkLabel(card, text="?", width=80, height=80, corner_radius=10, fg_color="#444")
-        if user.get('profile_pic_url'): threading.Thread(target=self.load_image_async, args=(user.get('profile_pic_url'), img_widget), daemon=True).start()
-        img_widget.grid(row=0, column=0, rowspan=2, padx=15, pady=15)
+        # 1. Avatar
+        img_widget = ctk.CTkLabel(card, text="", width=80, height=80, corner_radius=10, fg_color="#444")
+        if user.get('profile_pic_url'): 
+            threading.Thread(target=self.load_image_async, args=(user.get('profile_pic_url'), img_widget), daemon=True).start()
+        img_widget.grid(row=0, column=0, rowspan=4, padx=15, pady=15, sticky="n")
 
+        # 2. Hlavička (Jméno + Verifikace + Handle)
         info_frame = ctk.CTkFrame(card, fg_color="transparent")
         info_frame.grid(row=0, column=1, sticky="nw", pady=(15, 0), padx=5)
-        ctk.CTkLabel(info_frame, text=user.get('display_name') or user['username'], font=("Segoe UI", 16, "bold"), text_color="white").pack(anchor="w")
-        ctk.CTkLabel(info_frame, text=f"@{user['username']} • {str(user.get('platform')).upper()}", font=("Segoe UI", 13), text_color=c_text_dim).pack(anchor="w")
+        
+        # Jméno
+        name_text = user.get('display_name') or user['username']
+        lbl_name = ctk.CTkLabel(info_frame, text=name_text, font=("Segoe UI", 16, "bold"), text_color="white")
+        lbl_name.pack(side="left")
 
+        # Verifikace
+        if user.get('is_verified') == 1:
+            lbl_ver = ctk.CTkLabel(info_frame, text="☑", font=("Segoe UI", 16), text_color="#1DA1F2")
+            lbl_ver.pack(side="left", padx=(5, 0))
+
+        # Handle a Platforma
+        handle_text = f"@{user['username']} • {str(user.get('platform')).upper()}"
+        ctk.CTkLabel(info_frame, text=handle_text, font=("Segoe UI", 13), text_color=c_text_dim).pack(side="left", padx=(10, 0))
+
+        # 3. Statistiky (Followers / Following)
         stats_frame = ctk.CTkFrame(card, fg_color="transparent")
-        stats_frame.grid(row=1, column=1, sticky="nw", pady=(5, 15), padx=5)
+        stats_frame.grid(row=1, column=1, sticky="nw", pady=(5, 5), padx=5)
+        
         f_count = user.get('followers_count', 0)
-        ctk.CTkLabel(stats_frame, text=f"{f_count:,} followers" if f_count is not None else "Unknown", font=("Segoe UI", 12, "bold"), text_color=c_primary).pack(side="left", padx=(0, 15))
-        last_s = str(user.get('last_scraped')).split('T')[0] if user.get('last_scraped') else "?"
-        ctk.CTkLabel(stats_frame, text=f"Scraped: {last_s}", font=("Segoe UI", 12), text_color=c_text_dim).pack(side="left")
+        fol_count = user.get('following_count', 0)
+        
+        def fmt(num): return f"{num:,}".replace(",", " ") if num is not None else "0"
 
+        # Followers
+        ctk.CTkLabel(stats_frame, text=fmt(f_count), font=("Segoe UI", 13, "bold"), text_color=c_text_main).pack(side="left")
+        ctk.CTkLabel(stats_frame, text="Followers", font=("Segoe UI", 13), text_color=c_text_dim).pack(side="left", padx=(3, 15))
+        
+        # Following
+        ctk.CTkLabel(stats_frame, text=fmt(fol_count), font=("Segoe UI", 13, "bold"), text_color=c_text_main).pack(side="left")
+        ctk.CTkLabel(stats_frame, text="Following", font=("Segoe UI", 13), text_color=c_text_dim).pack(side="left", padx=(3, 0))
+
+        # 4. Bio
         bio = user.get('bio')
-        if bio: ctk.CTkLabel(card, text=(bio.replace('\n', ' ')[:80] + "...") if len(bio)>80 else bio, font=("Segoe UI", 12, "italic"), text_color="gray").grid(row=2, column=1, sticky="w", padx=5, pady=(0, 15))
+        if bio: 
+            short_bio = (bio.replace('\n', ' ')[:90] + "...") if len(bio)>90 else bio
+            ctk.CTkLabel(card, text=short_bio, font=("Segoe UI", 12, "italic"), text_color="#b0b0b0", anchor="w").grid(row=2, column=1, sticky="w", padx=5, pady=(0, 5))
+
+        # 5. Metadata řádek (Lokace, Web, Joined)
+        meta_frame = ctk.CTkFrame(card, fg_color="transparent")
+        meta_frame.grid(row=3, column=1, sticky="nw", pady=(0, 15), padx=5)
+        
+        meta_items = []
+        if user.get('location'): meta_items.append(f"📍 {user['location']}")
+        if user.get('website'): meta_items.append(f"🔗 {user['website']}")
+        if user.get('joined_date'): meta_items.append(f"📅 {user['joined_date']}")
+        
+        meta_text = "   ".join(meta_items)
+        if meta_text:
+            ctk.CTkLabel(meta_frame, text=meta_text, font=("Segoe UI", 11), text_color=c_text_dim).pack(side="left")
+
+        # Datum stažení vpravo dole
+        last_s = str(user.get('last_scraped')).split('T')[0] if user.get('last_scraped') else "?"
+        ctk.CTkLabel(card, text=f"Upd: {last_s}", font=("Segoe UI", 10), text_color="#555").grid(row=3, column=1, sticky="e", padx=15, pady=(0, 15))
 
     def load_image_async(self, url, label_widget):
-        """Stáhne obrázek, ořízne na čtverec a aktualizuje label. Používá cache."""
         if url in self.image_cache:
             ctk_image = self.image_cache[url]
         else:
@@ -240,11 +295,8 @@ class App(ctk.CTk):
                     img_data = BytesIO(response.content)
                     pil_img = Image.open(img_data)
                     
-                    # --- FIX: CENTER CROP NA ČTVEREC (1:1) ---
-                    # Zjistíme rozměry
+                    # Center Crop na čtverec
                     width, height = pil_img.size
-                    
-                    # Pokud není čtvercový, ořízneme střed
                     if width != height:
                         new_size = min(width, height)
                         left = (width - new_size) / 2
@@ -253,10 +305,7 @@ class App(ctk.CTk):
                         bottom = (height + new_size) / 2
                         pil_img = pil_img.crop((left, top, right, bottom))
                     
-                    # --- RESIZE A VYTVOŘENÍ CTK IMAGE ---
-                    # Používáme LANCZOS pro nejvyšší kvalitu zmenšení
                     pil_img = pil_img.resize((80, 80), Image.Resampling.LANCZOS)
-                    
                     ctk_image = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(80, 80))
                     self.image_cache[url] = ctk_image
                 else:
@@ -264,8 +313,6 @@ class App(ctk.CTk):
             except:
                 return
 
-        # Update GUI (musí být v hlavním vlákně)
-        # Nastavíme text="" aby nezabíral místo a fg_color="transparent", aby bylo vidět jen foto (pokud by mělo průhlednost)
         self.after(0, lambda: label_widget.configure(image=ctk_image, text="", fg_color="transparent"))
 
     # =========================================================================

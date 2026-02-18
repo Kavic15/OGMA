@@ -235,86 +235,95 @@ class XScraper:
 
         print(f"[X-SCRAPER] Jsem na profilu: @{actual_username}")
         
+        # --- TĚŽBA METADAT (NOVÉ) ---
         try:
+            # Display Name + Verifikace
             display_name_ele = self.bot.page.ele('@data-testid=UserName', timeout=3)
-            display_name = display_name_ele.text.split('\n')[0] if display_name_ele else actual_username
-            
+            if display_name_ele:
+                display_name = display_name_ele.text.split('\n')[0]
+                # Kontrola modré fajfky
+                is_verified = 1 if display_name_ele.ele('tag:svg@aria-label=Verified account', timeout=0.1) else 0
+            else:
+                display_name = actual_username
+                is_verified = 0
+
+            # Bio
             bio_ele = self.bot.page.ele('@data-testid=UserDescription', timeout=2)
             bio = bio_ele.text if bio_ele else ""
             
+            # Location (Lokace)
+            loc_ele = self.bot.page.ele('@data-testid=UserLocation', timeout=1)
+            location = loc_ele.text if loc_ele else None
+
+            # Website (Link in Bio)
+            web_ele = self.bot.page.ele('@data-testid=UserUrl', timeout=1)
+            website = web_ele.text if web_ele else None
+
+            # Joined Date (Datum registrace)
+            join_ele = self.bot.page.ele('@data-testid=UserJoinDate', timeout=1)
+            joined_date = join_ele.text if join_ele else None
+
+            # Followers (Sledující)
             followers_ele = self.bot.page.ele('xpath://a[contains(@href, "/followers")]/span[1]|//a[contains(@href, "/verified_followers")]/span[1]', timeout=2)
             followers_text = followers_ele.text if followers_ele else "0"
             followers_count = self.parse_number(followers_text)
 
-            # --- INTELLIGENT PROFILE PIC SCRAPER ---
+            # Following (Sledovaní) - NOVÉ
+            following_ele = self.bot.page.ele('xpath://a[contains(@href, "/following")]/span[1]', timeout=2)
+            following_text = following_ele.text if following_ele else "0"
+            following_count = self.parse_number(following_text)
+
+            # Banner (Hlavička) - NOVÉ
+            banner_url = None
+            try:
+                banner_link = self.bot.page.ele('xpath://a[contains(@href, "/header_photo")]//img', timeout=1)
+                if banner_link: banner_url = banner_link.attr('src')
+            except: pass
+
+            # Profile Pic (Zachováno)
             profile_pic_url = None
             try:
-                # 1. Zkusíme kulatou profilovku
                 avatar_img = self.bot.page.ele('css:img[alt="Opens profile photo"]', timeout=1)
-                
-                # 2. Zkusíme čtvercovou profilovku (PlayStation a jiné firmy)
-                if not avatar_img:
-                    avatar_img = self.bot.page.ele('css:img[alt="Square profile picture and Opens profile photo"]', timeout=1)
-                
-                # 3. Fallback kontejner
-                if not avatar_img:
-                    avatar_img = self.bot.page.ele('xpath://div[contains(@data-testid, "UserAvatar-Container")]//img', timeout=1)
+                if not avatar_img: avatar_img = self.bot.page.ele('css:img[alt="Square profile picture and Opens profile photo"]', timeout=1)
+                if not avatar_img: avatar_img = self.bot.page.ele('xpath://div[contains(@data-testid, "UserAvatar-Container")]//img', timeout=1)
                 
                 if avatar_img:
                     initial_url = avatar_img.attr('src')
                     profile_pic_url = initial_url 
-
-                    # KONTROLA KVALITY: Pouze pokud je to "špatná" verze, klikáme
+                    # HD logika (zkrácená)
                     if initial_url and any(x in initial_url for x in ['_bigger', '_mini', '_normal']):
-                        print(f"[X-SCRAPER] Detekována nízká kvalita ({initial_url.split('/')[-1]}), klikám pro HD verzi...")
-                        
-                        # Hledáme odkaz na fotku
                         photo_link = self.bot.page.ele('xpath://div[contains(@data-testid, "UserAvatar-Container")]//a[contains(@href, "/photo")]', timeout=2)
-                        
                         if photo_link:
                             photo_link.click()
-                            
-                            # Čekáme na HD obrázek v modálu
                             large_img = self.bot.page.ele('xpath://div[@data-testid="swipe-to-dismiss"]//img', timeout=3)
-                            
-                            if large_img:
-                                profile_pic_url = large_img.attr('src')
-                                print(f"[X-SCRAPER] High-res URL získána: {profile_pic_url[:40]}...")
-                            
-                            # Zavření modalu
+                            if large_img: profile_pic_url = large_img.attr('src')
                             close_btn = self.bot.page.ele('css:div[aria-label="Close"]', timeout=1) or self.bot.page.ele('css:div[aria-label="Zavřít"]', timeout=1)
-                            if close_btn:
-                                close_btn.click()
-                            else:
-                                self.bot.page.back() # Spolehlivý fallback
-                            
-                            delay(0.5, 1)
-                        else:
-                            print("[X-SCRAPER] Nelze kliknout na fotku, zůstávám u náhledu.")
-                    else:
-                        print(f"[X-SCRAPER] URL profilovky je v pořádku.")
-
-            except Exception as e:
-                print(f"[X-SCRAPER] Chyba při zpracování fotky: {e}")
-                if "/photo" in self.bot.page.url:
-                    self.bot.page.back()
+                            if close_btn: close_btn.click()
+                            else: self.bot.page.back()
+                            delay(0.5)
+            except: pass
 
         except Exception as e:
             print(f"[ERROR] Chyba čtení metadat: {e}")
-            display_name = actual_username
-            bio = ""
-            followers_count = 0
-            profile_pic_url = None
+            display_name = actual_username; bio = ""; followers_count = 0; following_count = 0
+            location = None; website = None; joined_date = None; is_verified = 0; banner_url = None; profile_pic_url = None
 
+        # Uložení do DB s novými poli
         user_id = self.db.upsert_user(
             platform="X", 
             username=actual_username, 
             display_name=display_name, 
             bio=bio, 
             followers_count=followers_count, 
-            profile_pic_url=profile_pic_url
+            following_count=following_count, # NOVÉ
+            joined_date=joined_date,         # NOVÉ
+            location=location,               # NOVÉ
+            website=website,                 # NOVÉ
+            is_verified=is_verified,         # NOVÉ
+            profile_pic_url=profile_pic_url,
+            banner_url=banner_url            # NOVÉ
         )
-        print(f"[X-SCRAPER] Uživatel @{actual_username} uložen.")
+        print(f"[X-SCRAPER] Uživatel @{actual_username} uložen. (Verifikace: {is_verified})")
 
         # 5. TĚŽBA PŘÍSPĚVKŮ
         print("[X-SCRAPER] Sbírám příspěvky...")

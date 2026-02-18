@@ -9,3 +9,4 @@ if __name__ == "__main__":
         print("\n[INFO] Aplikace byla ukončena uživatelem (CTRL+C).")
     except Exception as e:
         print(f"\n[CRITICAL ERROR] Aplikace spadla: {e}")
+        

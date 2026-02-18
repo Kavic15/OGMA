@@ -4,6 +4,12 @@ import uuid
 from pathlib import Path
 from datetime import datetime, timezone
 
+import sqlite3
+import os
+import uuid
+from pathlib import Path
+from datetime import datetime, timezone
+
 class DatabaseManager:
     def __init__(self, db_name="osint.db"):
         current_file = Path(__file__).resolve()
@@ -18,14 +24,14 @@ class DatabaseManager:
         
         self._connect()
         self._create_tables()
-        self._migrate_db() # Kontrola nových sloupců
+        self._migrate_db() # Důležité: Přidá nové sloupce do existující DB
 
     def _connect(self):
         self.conn = sqlite3.connect(str(self.db_path), timeout=10) 
         self.cursor = self.conn.cursor()
 
     def _create_tables(self):
-        # TABULKA USERS - přidán sloupec profile_pic_url
+        # TABULKA USERS - Rozšířená o metadata
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 id TEXT PRIMARY KEY,
@@ -35,7 +41,13 @@ class DatabaseManager:
                 display_name TEXT,
                 bio TEXT,
                 followers_count INTEGER,
+                following_count INTEGER,       -- NOVÉ
+                joined_date TEXT,              -- NOVÉ
+                location TEXT,                 -- NOVÉ
+                website TEXT,                  -- NOVÉ
+                is_verified INTEGER DEFAULT 0, -- NOVÉ (Bonus)
                 profile_pic_url TEXT, 
+                banner_url TEXT,               -- NOVÉ (Bonus)
                 last_scraped TIMESTAMP,
                 UNIQUE(platform, username)
             )
@@ -96,18 +108,35 @@ class DatabaseManager:
         self.conn.commit()
 
     def _migrate_db(self):
-        """Zkontroluje, zda existuje sloupec profile_pic_url, a pokud ne, přidá ho."""
-        try:
-            self.cursor.execute("SELECT profile_pic_url FROM users LIMIT 1")
-        except sqlite3.OperationalError:
-            print("[DB] Migrace: Přidávám sloupec profile_pic_url do tabulky users.")
-            try:
-                self.cursor.execute("ALTER TABLE users ADD COLUMN profile_pic_url TEXT")
-                self.conn.commit()
-            except Exception as e:
-                print(f"[DB ERROR] Nepodařilo se přidat sloupec: {e}")
+        """Zkontroluje a přidá chybějící sloupce."""
+        required_columns = {
+            "following_count": "INTEGER",
+            "joined_date": "TEXT",
+            "location": "TEXT",
+            "website": "TEXT",
+            "is_verified": "INTEGER DEFAULT 0",
+            "banner_url": "TEXT",
+            "profile_pic_url": "TEXT"
+        }
 
-    def upsert_user(self, platform, username, platform_user_id=None, display_name=None, bio=None, followers_count=None, profile_pic_url=None):
+        try:
+            self.cursor.execute("PRAGMA table_info(users)")
+            existing = [row[1] for row in self.cursor.fetchall()]
+
+            for col, type_ in required_columns.items():
+                if col not in existing:
+                    print(f"[DB] Migrace: Přidávám sloupec '{col}'...")
+                    try: self.cursor.execute(f"ALTER TABLE users ADD COLUMN {col} {type_}")
+                    except: pass
+            self.conn.commit()
+        except Exception as e:
+            print(f"[DB ERROR] Migrace selhala: {e}")
+
+    def upsert_user(self, platform, username, platform_user_id=None, display_name=None, 
+                    bio=None, followers_count=None, following_count=None, 
+                    joined_date=None, location=None, website=None, is_verified=0,
+                    profile_pic_url=None, banner_url=None):
+        
         now = datetime.now(timezone.utc).isoformat()
         
         self.cursor.execute('SELECT id FROM users WHERE platform = ? AND username = ?', (platform, username))
@@ -121,16 +150,29 @@ class DatabaseManager:
                     display_name = COALESCE(?, display_name),
                     bio = COALESCE(?, bio),
                     followers_count = COALESCE(?, followers_count),
+                    following_count = COALESCE(?, following_count),
+                    joined_date = COALESCE(?, joined_date),
+                    location = COALESCE(?, location),
+                    website = COALESCE(?, website),
+                    is_verified = ?,
                     profile_pic_url = COALESCE(?, profile_pic_url),
+                    banner_url = COALESCE(?, banner_url),
                     last_scraped = ?
                 WHERE id = ?
-            ''', (platform_user_id, display_name, bio, followers_count, profile_pic_url, now, user_id))
+            ''', (platform_user_id, display_name, bio, followers_count, following_count, 
+                  joined_date, location, website, is_verified, profile_pic_url, banner_url, now, user_id))
         else:
             user_id = str(uuid.uuid4())
             self.cursor.execute('''
-                INSERT INTO users (id, platform, platform_user_id, username, display_name, bio, followers_count, profile_pic_url, last_scraped)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (user_id, platform, platform_user_id, username, display_name, bio, followers_count, profile_pic_url, now))
+                INSERT INTO users (
+                    id, platform, platform_user_id, username, display_name, bio, 
+                    followers_count, following_count, joined_date, location, website, is_verified,
+                    profile_pic_url, banner_url, last_scraped
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (user_id, platform, platform_user_id, username, display_name, bio, 
+                  followers_count, following_count, joined_date, location, website, is_verified,
+                  profile_pic_url, banner_url, now))
         
         self.conn.commit()
         return user_id
@@ -179,12 +221,9 @@ class DatabaseManager:
         Pokusí se najít username v DB na základě query (shoda s username nebo display_name).
         Vrací username (str) nebo None.
         """
-        # Vyčistíme query od zavináče pro hledání
         clean_q = query.replace('@', '').strip()
-        search_pattern = f"%{clean_q}%"
         
         try:
-            # Hledáme přesnou shodu prioritně, pak částečnou
             self.cursor.execute('''
                 SELECT username FROM users 
                 WHERE platform = 'X' AND (LOWER(username) = LOWER(?) OR LOWER(display_name) = LOWER(?))
@@ -194,11 +233,6 @@ class DatabaseManager:
             
             if row:
                 return row[0]
-                
-            # Pokud není přesná shoda, zkusíme LIKE (opatrně, ať nenajdeme nesmysly)
-            # Zde to raději necháme jen na přesnou shodu nebo velmi blízkou, 
-            # abychom omylem nepoužili "Elon Musk Parody" pro dotaz "Elon Musk".
-            # Pro tuto chvíli stačí přímá shoda jména.
             return None
             
         except Exception as e:

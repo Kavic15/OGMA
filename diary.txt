@@ -83,3 +83,26 @@ REDESIGN GUI (BITWARDEN STYLE) A OPTIMALIZACE X SCRAPERA
 
 4. Databáze:
    - Automatická migrace: Do tabulky `users` přidán sloupec `profile_pic_url`.
+
+18.2.2026
+--------------------------------------------------------------------------------
+MODULARIZACE ARCHITEKTURY, ROZŠÍŘENÁ METADATA A VIDEO SNIFFING
+
+1. Rozsáhlý Refactoring (Modularizace):
+   - Provedena kompletní restrukturalizace kódu pro zvýšení přehlednosti a udržitelnosti.
+   - GUI (app.py): Monolit rozdělen na hlavní kontroler a samostatné komponenty ve složce `src/gui/frames/` (Dashboard, Profiles, Database).
+   - X Scraper: Rozdělen na specializované moduly v `src/bots/x/modules/` (Search, Profile, Posts, Comments).
+   - Utils & Theme: Izolace barevných palet a pomocných tříd (Logger, AsyncImageLoader).
+
+2. Rozšířená OSINT Metadata (X):
+   - Scraper a Databáze rozšířeny o sběr detailních informací o cíli.
+   - Nově těžená data: Datum registrace (Joined Date), Lokace, Webová stránka, Počet sledovaných (Following), Banner URL a Status ověření (Verified).
+   - Implementována automatická migrace DB schématu (`_migrate_db`) pro přidání nových sloupců za chodu.
+
+3. Pokročilá práce s médii a komentáři:
+   - Video Sniffing (Fáze 2): Implementována experimentální logika pro záchyt `.m3u8` streamů pomocí odposlechu síťové komunikace (`page.listen`), což obchází absenci přímých odkazů v DOMu.
+   - Komentáře (Fáze 3): Opravena integrace těžby komentářů. Bot nyní automaticky vytěží komentáře pro všechny příspěvky nalezené v timeline.
+
+4. UX Vylepšení:
+   - Logování: Do konzole v GUI přidána časová razítka pro lepší debugging a měření latence operací.
+   - GUI: Karty profilů aktualizovány pro zobrazení nových metadat (ikony, status ověření).

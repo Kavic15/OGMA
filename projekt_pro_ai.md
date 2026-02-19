@@ -7,11 +7,6 @@ pillow
 requests
 ```
 
-## Soubor: __init__.py
-```py
-
-```
-
 ## Soubor: social_bot\main.py
 ```py
 from src.gui.app import App
@@ -26,56 +21,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n[CRITICAL ERROR] Aplikace spadla: {e}")
         
-```
-
-## Soubor: social_bot\test_profile.py
-```py
-from src.core.base_bot import BaseBot
-import time
-import os
-
-# Jednoduchý test, zda se vytvoří profil
-print("--- TEST ZAČÍNÁ ---")
-
-# Inicializace bota (použije ID "test_user")
-try:
-    bot = BaseBot(headless=False, user_id="test_user")
-    
-    print("Otevírám Google...")
-    bot.page.get("https://www.google.com")
-    
-    print("Čekám 5 sekund (nyní zkontroluj složku profiles/test_user)...")
-    time.sleep(5)
-    
-    print("Zavírám bota...")
-    bot.close()
-    print("--- TEST DOKONČEN ---")
-    
-    # Kontrola
-    profile_dir = os.path.join(os.getcwd(), 'profiles', 'test_user')
-    if os.path.exists(profile_dir) and len(os.listdir(profile_dir)) > 0:
-        print(f"✅ ÚSPĚCH! Složka profilu není prázdná: {profile_dir}")
-        print(f"Počet souborů/složek: {len(os.listdir(profile_dir))}")
-    else:
-        print(f"❌ CHYBA! Složka profilu je stále prázdná: {profile_dir}")
-
-except Exception as e:
-    print(f"CRITICAL ERROR: {e}")
-```
-
-## Soubor: social_bot\profiles\0_ig\Default\Service Worker\CacheStorage\2348e52d6de9218df880d9a88ad6a5d8c2c9555c\index.txt
-```txt
-Chyba při čtení souboru: 'utf-8' codec can't decode byte 0x80 in position 55: invalid start byte
-```
-
-## Soubor: social_bot\profiles\0_ig\Default\Service Worker\CacheStorage\d324cea85344c240641e02ac75d9ff5b961ca213\index.txt
-```txt
-Chyba při čtení souboru: 'utf-8' codec can't decode byte 0x80 in position 62: invalid start byte
-```
-
-## Soubor: social_bot\profiles\0_x\Default\Service Worker\CacheStorage\bd1c4d03a881bd4b56183475e9bd7806830c983b\index.txt
-```txt
-Chyba při čtení souboru: 'utf-8' codec can't decode byte 0x89 in position 1: invalid start byte
 ```
 
 ## Soubor: social_bot\src\bots\instagram\auth.py
@@ -561,11 +506,6 @@ class InstagramScraper:
         print("\n[IG-SCRAPER] Kompletní těžba cílového IG profilu a komentářů byla úspěšně dokončena.")
 ```
 
-## Soubor: social_bot\src\bots\instagram\__init__.py
-```py
-from .bot import InstagramBot
-```
-
 ## Soubor: social_bot\src\bots\x\auth.py
 ```py
 from src.utils.human_input import delay
@@ -718,11 +658,6 @@ class XScraper:
                 self.db.upsert_trend("X", index+1, "General", topic, count)
                 print(f"  -> #{index+1} {topic}")
             except: pass
-```
-
-## Soubor: social_bot\src\bots\x\__init__.py
-```py
-from .bot import XBot
 ```
 
 ## Soubor: social_bot\src\bots\x\modules\comments.py
@@ -1198,11 +1133,6 @@ class XUtils:
             pass
                 
         return current_text, media_url, is_video
-```
-
-## Soubor: social_bot\src\bots\x\modules\__init__.py
-```py
-
 ```
 
 ## Soubor: social_bot\src\core\base_bot.py
@@ -2382,11 +2312,6 @@ class ProfilesFrame(ctk.CTkFrame):
                      text_color="#555").grid(row=3, column=1, sticky="e", padx=15, pady=(0, 15))
 ```
 
-## Soubor: social_bot\src\gui\frames\__init__.py
-```py
-
-```
-
 ## Soubor: social_bot\src\utils\human_input.py
 ```py
 import time
@@ -2425,4 +2350,3 @@ def random_mouse_movement(page_object=None):
     """
     pass
 ```
-

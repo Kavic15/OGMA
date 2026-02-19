@@ -7,8 +7,6 @@ class XBot(BaseBot):
         super().__init__(user_id=user_id, platform="x")
         self.username = username
         self.password = password
-        
-        # CHYBĚJÍCÍ PROMĚNNÁ DOPLNĚNA
         self.base_url = "https://x.com/" 
         
         self.auth = XAuthenticator(self)

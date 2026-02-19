@@ -1,17 +1,18 @@
-from DrissionPage import ChromiumPage, ChromiumOptions
-from src.utils.human_input import delay
 import os
 from pathlib import Path
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
+from src.utils.human_input import delay
 
 class BaseBot:
     def __init__(self, headless=False, user_id="default", platform="general"):
         self.user_id = str(user_id)
         self.platform = platform
+        
+        self.playwright = sync_playwright().start()
+        self.context = None
         self.page = self._setup_driver(headless)
 
     def _setup_driver(self, headless):
-        co = ChromiumOptions()
-        
         current_file = Path(__file__).resolve()
         project_root = current_file.parent.parent.parent
         
@@ -19,63 +20,75 @@ class BaseBot:
         profile_path = project_root / 'profiles' / profile_folder
         os.makedirs(profile_path, exist_ok=True)
         
-        print(f"[BOT] Nastavuji izolovaný profil: {profile_path}")
+        print(f"[BOT] Nastavuji izolovaný profil (Playwright): {profile_path}")
         
-        browser_path = project_root / 'browser' / 'chrome.exe'
-        if browser_path.exists():
-            co.set_paths(browser_path=str(browser_path))
-        
-        co.set_user_data_path(str(profile_path))
-        co.set_local_port(9333) 
-
-        if headless:
-            co.headless(True)
-        
-        # ZMĚNA: Pouze zajistíme start na primárním monitoru.
-        co.set_argument('--window-position=0,0') 
-        # (Argument --start-maximized byl odstraněn, vyvolával konflikt v Chromiu)
-
-        co.set_argument('--no-first-run')
-        co.set_argument('--no-default-browser-check') 
-        co.set_argument('--restore-last-session')
+        args = [
+            '--disable-blink-features=AutomationControlled',
+            '--window-position=0,0',
+            '--disable-infobars',
+            '--disable-extensions'
+        ]
 
         try:
-            page = ChromiumPage(co)
-            # ZMĚNA: Nativní spolehlivá maximalizace okna pomocí DrissionPage
-            page.set.window.max() 
+            self.context = self.playwright.chromium.launch_persistent_context(
+                user_data_dir=str(profile_path),
+                headless=headless,
+                args=args,
+                no_viewport=True,
+                channel="chrome",
+                accept_downloads=True
+            )
             
-            # Poznámka: Pokud jsi myslel "absolutní fullscreen" bez hlavního panelu Windows (jako po stisku F11), 
-            # nahraď řádek výše tímto: page.set.window.full()
+            page = self.context.pages[0] if self.context.pages else self.context.new_page()
+            
+            # Aplikace vlastních anti-detekčních skriptů (nahrazuje playwright-stealth)
+            self._apply_stealth_scripts(page)
             
             return page
             
         except Exception as e:
-            print(f"[CRITICAL ERROR] Nelze spustit prohlížeč: {e}")
+            print(f"[CRITICAL ERROR] Nelze spustit Playwright prohlížeč: {e}")
+            if self.playwright:
+                self.playwright.stop()
             raise e
+
+    def _apply_stealth_scripts(self, page):
+        """Aplikuje základní anti-detekční skripty přímo přes Playwright."""
+        # Skrytí příznaku botnetu
+        page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+        # Falešné pluginy (často kontrolováno Instagramem a X)
+        page.add_init_script("Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3]})")
+        # Falešné jazyky
+        page.add_init_script("Object.defineProperty(navigator, 'languages', {get: () => ['cs-CZ', 'cs', 'en-US', 'en']})")
 
     def open_url(self, url):
         print(f"[BOT] Otevírám {url}")
         try:
-            self.page.get(url)
+            self.page.goto(url, wait_until="domcontentloaded", timeout=30000)
             delay(3, 5)
         except Exception as e:
             print(f"[ERROR] Chyba při otevírání URL: {e}")
 
     def find_element_smart(self, selector, description="prvek", timeout=10):
         try:
-            return self.page.ele(selector, timeout=timeout)
-        except:
+            locator = self.page.locator(selector).first
+            locator.wait_for(state="attached", timeout=timeout * 1000)
+            return locator
+        except PlaywrightTimeoutError:
+            return None
+        except Exception as e:
+            print(f"[DEBUG] Chyba hledání prvku '{description}': {e}")
             return None
 
     def click_smart(self, selector, description="tlačítko", timeout=5):
-        ele = self.find_element_smart(selector, description, timeout)
-        if ele:
+        locator = self.find_element_smart(selector, description, timeout)
+        if locator:
             try:
-                ele.click()
+                locator.click(timeout=timeout * 1000)
                 return True
             except:
                 try:
-                    ele.click(by_js=True)
+                    locator.click(force=True, timeout=timeout * 1000)
                     return True
                 except:
                     pass
@@ -83,30 +96,28 @@ class BaseBot:
         
     def handle_popups(self, triggers):
         for text in triggers:
-            ele = self.page.ele(f'text:{text}', timeout=0.5)
-            if ele:
-                try:
-                    ele.click()
+            try:
+                locator = self.page.get_by_text(text, exact=False).first
+                if locator.is_visible(timeout=500):
+                    locator.click(force=True)
                     print(f"[BOT] Odkliknuto vyskakovací okno: '{text}'")
                     delay(1)
                     return True
-                except:
-                    try:
-                        ele.click(by_js=True)
-                        return True
-                    except:
-                        pass
+            except:
+                pass
         return False
 
     def close(self):
-        # POJISTKA: Pokud už je stránka zavřená, nedělej nic
-        if getattr(self, 'page', None) is None:
+        if getattr(self, 'context', None) is None:
             return
             
-        print(f"[BOT] Ukládám profil {self.user_id}_{self.platform} a zavírám...")
+        print(f"[BOT] Ukládám profil {self.user_id}_{self.platform} a zavírám (Playwright)...")
         try:
-            self.page.quit() 
-            self.page = None # Vynulujeme objekt, abychom nezavírali dvakrát
+            self.context.close()
+            if self.playwright:
+                self.playwright.stop()
+            self.context = None
+            self.page = None
             print("[BOT] Uloženo.")
         except Exception:
-            pass # Ignorujeme chyby, pokud už uživatel prohlížeč zavřel křížkem
+            pass

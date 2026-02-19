@@ -20,35 +20,49 @@ class XUtils:
         return int(num)
 
     @staticmethod
-    def extract_media(article, current_text):
+    def extract_media(article_locator, current_text):
         """Vrátí tuple (updated_text, media_url, is_video)"""
         media_url = None
         is_video = False
         
         try:
-            # Foto
-            photo_ele = article.ele('@data-testid=tweetPhoto', timeout=0.05)
-            # Video
-            video_ele = article.ele('@data-testid=videoPlayer', timeout=0.05)
+            # 1. Hledáme primárně explicitní video přehrávač nebo tag video
+            video_loc = article_locator.locator('[data-testid="videoPlayer"], video').first
+            photo_loc = article_locator.locator('[data-testid="tweetPhoto"]').first
             
-            if photo_ele:
-                img_ele = photo_ele.ele('tag:img', timeout=0.05)
-                if img_ele:
-                    media_url = img_ele.attr('src')
-                if not current_text.strip():
-                    current_text = "[OBSAHUJE FOTKU]"
-                    
-            elif video_ele:
+            if video_loc.count() > 0:
                 is_video = True
-                # Zkusíme získat alespoň poster (thumbnail)
-                poster_video = video_ele.ele('tag:video', timeout=0.05)
-                if poster_video:
-                    media_url = poster_video.attr('poster')
+                
+                # Zjištění, zda je nalezený element přímo video tag
+                is_video_tag = video_loc.evaluate("el => el.tagName.toLowerCase() === 'video'")
+                if is_video_tag:
+                    media_url = video_loc.get_attribute('poster')
+                else:
+                    poster_video = video_loc.locator('video').first
+                    if poster_video.count() > 0:
+                        media_url = poster_video.get_attribute('poster')
                 
                 if not current_text.strip():
                     current_text = "[OBSAHUJE VIDEO]"
                     
-        except:
+            # 2. Pokud se tváří jako fotka, zkontrolujeme ji
+            elif photo_loc.count() > 0:
+                img_loc = photo_loc.locator('img').first
+                if img_loc.count() > 0:
+                    media_url = img_loc.get_attribute('src')
+                    
+                    # Záchranná detekce: X často lazy-loaduje videa jako statické obrázky
+                    # Pokud URL obsahuje text indikující náhled videa, přehodnotíme to
+                    if media_url and ('video_thumb' in media_url or 'ext_tw_video' in media_url):
+                        is_video = True
+                        if not current_text.strip():
+                            current_text = "[OBSAHUJE VIDEO]"
+                            
+                # Pokud to video opravdu není, potvrdíme fotku
+                if not is_video and not current_text.strip():
+                    current_text = "[OBSAHUJE FOTKU]"
+                    
+        except Exception:
             pass
                 
         return current_text, media_url, is_video

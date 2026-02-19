@@ -106,3 +106,23 @@ MODULARIZACE ARCHITEKTURY, ROZŠÍŘENÁ METADATA A VIDEO SNIFFING
 4. UX Vylepšení:
    - Logování: Do konzole v GUI přidána časová razítka pro lepší debugging a měření latence operací.
    - GUI: Karty profilů aktualizovány pro zobrazení nových metadat (ikony, status ověření).
+
+19.2.2026
+--------------------------------------------------------------------------------
+KOMPLETNÍ MIGRACE NA PLAYWRIGHT A STABILIZACE SCRAPERŮ
+
+1. Architektonická změna (DrissionPage -> Playwright):
+   - Kompletní přepis vrstvy webové automatizace na synchronní Playwright.
+   - Odstraněna nespolehlivá knihovna playwright-stealth, nahrazena nativní injekcí skriptů pro skrytí webdriveru a podvržení metadat (plugins, languages).
+   - Správa prohlížeče plně přesunuta do pracovních vláken, čímž byl vyřešen kritický pád (greenlet.error) při manuálním ukončení bota z GUI.
+
+2. Masivní vylepšení X (Twitter) Scraperu:
+   - Video Sniffing: Původní čekání na .m3u8 přesunuto na pokročilé odchytávání GraphQL odpovědí (page.on("response")). Nyní bot získává čisté přímé .mp4 adresy ze serverů X.
+   - Detekce médií: Opravena chyba, kdy X maskuje načítající se videa jako fotky. Přidána kontrola URL na "video_thumb".
+   - Komentáře: Zavedena dodatečná Fáze 4 pro stahování .mp4 videí i z vláken komentářů.
+
+3. Komplexní oprava Instagram Scraperu:
+   - Čísla a lokalizace: Napsán robustní parser pro česká čísla, který si poradí s textem "tis." i se zrádnými nedělitelnými mezerami (\xa0).
+   - Média a Kolotoče (Carousels): Scraper nyní dokáže "proklikat" kolotoč fotek a uložit všechny adresy oddělené středníkem. Zavedeno striktní pravidlo (ignorování tagu <a>), které úspěšně zamezuje stahování fotek z cizích příspěvků v doporučené mřížce.
+   - Extrakce metadat: Kompletní přepis těžby profilu do komplexní JavaScriptové injekce. Bot přesně čte jméno, bio, verifikaci, followers/following a odkaz na web přímo z HTML hlavičky profilu, čímž obchází zmatené zanořování divů na IG.
+   - Oprava komentářů: Zavedeny filtry omezující délku textu pro detekci lajků a odstraňující systémové texty ("Zobrazit všech X odpovědí"), díky čemuž se statistiky ukládají naprosto přesně.

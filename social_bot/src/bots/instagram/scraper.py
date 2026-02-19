@@ -1,7 +1,7 @@
-from src.utils.human_input import delay, human_typing
+from src.utils.human_input import delay
 from src.core.database import DatabaseManager
 import re
-import time
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 class InstagramScraper:
     def __init__(self, bot):
@@ -11,13 +11,26 @@ class InstagramScraper:
     def parse_number(self, text):
         if not text: 
             return 0
-        text = text.upper().replace(',', '').replace(' ', '').replace('.', '')
+        
+        # OPRAVA: Odstranění nedělitelných mezer (\xa0) a všech dalších whitespace znaků
+        text = str(text).upper().replace('\xa0', '').replace('&NBSP;', '')
+        text = re.sub(r'\s+', '', text)
+        
+        if 'TIS' in text:
+            text = text.replace('TIS.', 'K').replace('TIS', 'K')
+            
+        text = text.replace('TOSEMILÍBÍ', '').replace('LIKES', '')
+        text = text.replace(',', '.')
+        
         match = re.search(r'([\d\.]+)([KMB]?)', text)
         if not match: 
             return 0
             
         num_str, suffix = match.groups()
-        num = float(num_str)
+        try:
+            num = float(num_str)
+        except:
+            return 0
         
         if suffix == 'K': num *= 1000
         elif suffix == 'M': num *= 1000000
@@ -31,28 +44,122 @@ class InstagramScraper:
         delay(3, 5)
 
         platform_post_id = post_url.rstrip('/').split('/')[-1]
+        
+        current_url = self.bot.page.url
+        try:
+            actual_username = current_url.split('instagram.com/')[-1].split('/')[0].split('?')[0]
+        except:
+            actual_username = ""
 
-        post_text_ele = self.bot.page.ele('xpath://h1[@dir="auto"]', timeout=2)
-        post_text = post_text_ele.text if post_text_ele else ""
+        post_container = self.bot.page.locator('main, article, [role="dialog"]').first
+        
+        # 1. Extrakce textu příspěvku
+        post_text = ""
+        h1_els = post_container.locator('h1[dir="auto"]').all()
+        for h1 in h1_els:
+            txt = h1.inner_text()
+            if txt and txt != actual_username:
+                post_text += txt + "\n"
+                
+        if not post_text.strip():
+            span_els = post_container.locator('span[dir="auto"]').all()
+            for sp in span_els[:5]:
+                txt = sp.inner_text()
+                if txt and txt != actual_username and len(txt) > 5 and not re.match(r'^\d+\s+[hdwmsčty]$', txt, re.IGNORECASE):
+                    post_text = txt
+                    break
+        post_text = post_text.strip()
 
-        media_url = None
-        img_ele = self.bot.page.ele('xpath://article//img', timeout=1)
-        if img_ele:
-            media_url = img_ele.attr('src')
-            if not post_text: post_text = "[OBSAHUJE FOTKU]"
-        else:
-            video_ele = self.bot.page.ele('tag:video', timeout=1)
-            if video_ele:
-                media_url = video_ele.attr('src')
-                if not post_text: post_text = "[OBSAHUJE VIDEO]"
+        # 2. Extrakce média (Podpora kolotočů s využitím JS evaluace pro ignorování mřížky)
+        media_urls = []
+        is_video = False
+        
+        for _ in range(15):
+            # Videa
+            for v in post_container.locator('video').all():
+                try:
+                    if v.evaluate("el => el.closest('a') !== null"):
+                        continue
+                        
+                    src = v.get_attribute('src') or v.get_attribute('poster')
+                    if src and not src.startswith('blob:'):
+                        src = src.replace('&amp;', '&')
+                        if src not in media_urls:
+                            media_urls.append(src)
+                            is_video = True
+                except:
+                    pass
+            
+            # Fotky
+            for img in post_container.locator('div._aagv img, ul li img').all():
+                try:
+                    if img.evaluate("el => el.closest('a') !== null"):
+                        continue
+                        
+                    alt = (img.get_attribute('alt') or "").lower()
+                    src = img.get_attribute('src') or ""
+                    
+                    if "profile" not in alt and "profilov" not in alt and "data:image" not in src:
+                        src = src.replace('&amp;', '&')
+                        if src and src not in media_urls:
+                            media_urls.append(src)
+                except:
+                    pass
+            
+            # Pokus o posun kolotoče na další fotku
+            try:
+                next_btn = post_container.locator('button[aria-label="Další"], button[aria-label="Next"]').first
+                if next_btn.is_visible(timeout=500):
+                    next_btn.click(force=True)
+                    self.bot.page.wait_for_timeout(800)
+                else:
+                    break
+            except:
+                break
 
-        likes_ele = self.bot.page.ele('xpath://a[contains(@href, "/liked_by/")]//span', timeout=1)
-        if not likes_ele:
-            likes_ele = self.bot.page.ele('xpath://section//span[contains(text(), "To se mi líbí") or contains(text(), "likes")]', timeout=1)
-        likes_count = self.parse_number(likes_ele.text if likes_ele else "0")
+        if not post_text:
+            if is_video:
+                post_text = "[OBSAHUJE VIDEO]"
+            elif media_urls:
+                post_text = "[OBSAHUJE FOTKU]"
 
-        time_ele = self.bot.page.ele('tag:time', timeout=1)
-        timestamp = time_ele.attr('datetime') if time_ele else ""
+        final_media_url = ";".join(media_urls) if media_urls else None
+
+        # 3. Extrakce statistik
+        stats_js = """
+        (container) => {
+            let likes = "0";
+            let comments = "0";
+            if(!container) container = document;
+            
+            let svgs = container.querySelectorAll('svg');
+            for(let svg of svgs) {
+                let label = svg.getAttribute('aria-label');
+                if (label === 'To se mi líbí' || label === 'Like') {
+                    let btn = svg.closest('div[role="button"], a');
+                    if (btn && btn.innerText.match(/\\d/)) {
+                        likes = btn.innerText;
+                    }
+                } else if (label === 'Komentář' || label === 'Comment') {
+                    let btn = svg.closest('div[role="button"], a');
+                    if (btn && btn.innerText.match(/\\d/)) {
+                        comments = btn.innerText;
+                    }
+                }
+            }
+            return {likes, comments};
+        }
+        """
+        try:
+            post_element_handle = post_container.element_handle()
+            stats_data = self.bot.page.evaluate(stats_js, post_element_handle)
+            likes_count = self.parse_number(stats_data.get('likes', '0'))
+            comments_count = self.parse_number(stats_data.get('comments', '0'))
+        except:
+            likes_count, comments_count = 0, 0
+
+        time_loc = post_container.locator('time').first
+        timestamp = time_loc.get_attribute('datetime') if time_loc.count() > 0 else ""
 
         db_post_id = self.db.upsert_post(
             user_id=db_user_id,
@@ -62,20 +169,21 @@ class InstagramScraper:
             timestamp_posted=timestamp,
             likes_count=likes_count,
             shares_count=0, 
-            comments_count=0, 
+            comments_count=comments_count, 
             url=post_url,
-            media_url=media_url
+            media_url=final_media_url
         )
-        print(f"  -> [IG-SCRAPER] Uložen příspěvek ID: {platform_post_id} | Lajky: {likes_count}")
+        print(f"  -> [IG-SCRAPER] Uložen příspěvek ID: {platform_post_id} | Lajky: {likes_count} | Komentáře: {comments_count} | Média: {len(media_urls)}")
 
+        # --- Těžba komentářů ---
         print(f"  -> [IG-SCRAPER] Těžím komentáře k tomuto příspěvku...")
         comments_collected = 0
         processed_comment_ids = set()
         max_comments = 50
 
-        # --- JS INJEKCE PRO KOMENTÁŘE (ZACHOVÁNO) ---
+        # OPRAVENÝ SKRIPT PRO KOMENTÁŘE
         js_extract_comments = """
-        function extract() {
+        () => {
             var results = [];
             var times = document.querySelectorAll('time');
             for (var i = 0; i < times.length; i++) {
@@ -100,12 +208,20 @@ class InstagramScraper:
                 }
                 
                 var textContent = "";
-                var dirEls = block.querySelectorAll('span[dir="auto"], div[dir="auto"]');
+                var dirEls = block.querySelectorAll('span[dir="auto"], div[dir="auto"], span');
                 for (var k = 0; k < dirEls.length; k++) {
                     var txt = dirEls[k].innerText.trim();
                     var ignoreWords = ['Odpovědět', 'Reply', 'Zobrazit překlad', 'See translation', 'Skrýt odpovědi', 'Hide replies'];
-                    if (txt && txt !== author && !ignoreWords.includes(txt) && !txt.includes('To se mi líbí') && !txt.includes(' like')) {
-                        if (!textContent.includes(txt)) {
+                    
+                    var isTimeStr = /^\\d+\\s*[hdwmsčty]$/i.test(txt) || /^před\\s+\\d+/i.test(txt);
+                    // Nový filtr pro skrytí textů "Zobrazit odpovědi"
+                    var isReplyStr = /zobrazit\\s+všech/i.test(txt) || /view\\s+all/i.test(txt) || /odpovědí/i.test(txt) || /replies/i.test(txt);
+                    
+                    if (txt && txt !== author && !ignoreWords.includes(txt) && !txt.includes('To se mi líbí') && !txt.includes(' like') && !isTimeStr && !isReplyStr) {
+                        // Zabráníme čtení textu z obrovských rodičovských divů
+                        if (author && txt.includes(author) && txt.length > author.length + 5) continue;
+                        
+                        if (!textContent.includes(txt) && txt.length > 1) {
                             textContent += txt + " ";
                         }
                     }
@@ -115,9 +231,13 @@ class InstagramScraper:
                 var allTextEls = block.querySelectorAll('span, div');
                 for (var k = 0; k < allTextEls.length; k++) {
                     var txt = allTextEls[k].innerText.trim();
-                    if ((txt.includes('To se mi líbí') || txt.includes(' like')) && /\\d/.test(txt)) {
-                        likesStr = txt;
-                        break;
+                    if ((txt.includes('To se mi líbí') || txt.includes(' like') || txt.includes('Likes') || txt.includes('likes')) && /\\d/.test(txt)) {
+                        // KLÍČOVÁ OCHRANA: List lajků má pár znaků, rodičovský div s celým komentářem jich má spoustu.
+                        // Omezíme to na 40 znaků, takže se uloží jen konkrétní element "33 To se mi líbí".
+                        if (txt.length < 40) {
+                            likesStr = txt;
+                            break;
+                        }
                     }
                 }
                 
@@ -130,44 +250,45 @@ class InstagramScraper:
             }
             return results;
         }
-        return extract();
         """
 
         js_scroll_comments = """
-        var times = document.querySelectorAll('time');
-        if (times.length > 1) {
-            var el = times[times.length - 1]; 
-            for (var i = 0; i < 15; i++) {
-                if (!el.parentElement || el.tagName === 'BODY' || el.tagName === 'HTML') break;
-                el = el.parentElement;
-                var style = window.getComputedStyle(el);
-                if (style.overflowY === 'auto' || style.overflowY === 'scroll' || style.overflowY === 'hidden') {
-                    if (el.scrollHeight > el.clientHeight + 10) {
-                        el.scrollTop = el.scrollHeight;
-                        return true;
+        () => {
+            var times = document.querySelectorAll('time');
+            if (times.length > 1) {
+                var el = times[times.length - 1]; 
+                for (var i = 0; i < 15; i++) {
+                    if (!el.parentElement || el.tagName === 'BODY' || el.tagName === 'HTML') break;
+                    el = el.parentElement;
+                    var style = window.getComputedStyle(el);
+                    if (style.overflowY === 'auto' || style.overflowY === 'scroll' || style.overflowY === 'hidden') {
+                        if (el.scrollHeight > el.clientHeight + 10) {
+                            el.scrollTop = el.scrollHeight;
+                            return true;
+                        }
                     }
                 }
             }
-        }
-        var divs = document.querySelectorAll('div, ul');
-        for (var i=0; i<divs.length; i++) {
-            var style = window.getComputedStyle(divs[i]);
-            if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && divs[i].scrollHeight > divs[i].clientHeight) {
-                divs[i].scrollTop = divs[i].scrollHeight;
+            var divs = document.querySelectorAll('div, ul');
+            for (var i=0; i<divs.length; i++) {
+                var style = window.getComputedStyle(divs[i]);
+                if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && divs[i].scrollHeight > divs[i].clientHeight) {
+                    divs[i].scrollTop = divs[i].scrollHeight;
+                }
             }
+            return false;
         }
-        return false;
         """
 
         for scroll_attempt in range(12):
             try:
-                load_more = self.bot.page.ele('css:svg[aria-label="Načíst další komentáře"], css:svg[aria-label="Load more comments"]', timeout=0.5)
-                if load_more:
-                    load_more.parent().click(by_js=True)
+                load_more = self.bot.page.locator('svg[aria-label="Načíst další komentáře"], svg[aria-label="Load more comments"]').first
+                if load_more.is_visible(timeout=500):
+                    load_more.locator('xpath=./ancestor::button | ./ancestor::div[@role="button"]').first.click(force=True)
                     delay(1.5, 2.5)
             except: pass
 
-            extracted_data = self.bot.page.run_js(js_extract_comments)
+            extracted_data = self.bot.page.evaluate(js_extract_comments)
             
             if extracted_data:
                 for data in extracted_data:
@@ -206,15 +327,11 @@ class InstagramScraper:
 
             if comments_collected >= max_comments: break
             try:
-                self.bot.page.run_js(js_scroll_comments)
+                self.bot.page.evaluate(js_scroll_comments)
             except: pass
             delay(1.5, 2.5)
 
     def scrape_profile(self, target_query, limit=10):
-        """
-        Hlavní metoda pro těžbu profilu.
-        limit: int -> Počet příspěvků ke stažení. Pokud -1, stahuje vše.
-        """
         limit_text = "NEOMEZENO" if limit == -1 else str(limit)
         print(f"[IG-SCRAPER] Zahajuji simulaci lidského vyhledávání: '{target_query}' (Limit: {limit_text})")
 
@@ -222,46 +339,45 @@ class InstagramScraper:
             self.bot.open_url(self.bot.base_url)
             delay(2, 4)
 
-        # 1. VYHLEDÁVÁNÍ (Simulace)
-        search_icon = self.bot.page.ele('css:svg[aria-label="Hledat"]', timeout=2)
-        if not search_icon:
-            search_icon = self.bot.page.ele('css:svg[aria-label="Search"]', timeout=2)
+        search_icon = self.bot.page.locator('svg[aria-label="Hledat"]').first
+        if search_icon.count() == 0:
+            search_icon = self.bot.page.locator('svg[aria-label="Search"]').first
 
-        if search_icon:
+        if search_icon.count() > 0:
             print("[IG-SCRAPER] Klikám na záložku Hledání (Lupa)...")
-            parent_link = search_icon.parent('tag:a')
-            if parent_link:
-                parent_link.click(by_js=True)
-            else:
-                search_icon.click(by_js=True)
+            try:
+                search_icon.locator('xpath=./ancestor::a').first.click(force=True)
+            except:
+                search_icon.click(force=True)
             delay(2, 4)
 
-            search_box = self.bot.page.ele('tag:input', timeout=3)
+            search_box = self.bot.page.locator('input').first
             
-            if search_box:
+            if search_box.count() > 0:
                 print("[IG-SCRAPER] Vyhledávací pole nalezeno, simuluji psaní...")
                 search_box.click()
                 delay(0.5, 1.5)
                 
-                human_typing(search_box, target_query)
+                search_box.fill("")
+                search_box.press_sequentially(target_query, delay=150)
                 print("[IG-SCRAPER] Dopsáno, čekám na dynamické výsledky...")
                 delay(4, 6)
                 
                 found_profile = False
                 ignore_list = ['explore', 'reels', 'direct', 'stories', 'tags', 'locations', 'p', 'your_activity', 'saved', 'settings', 'accounts', 'language']
                 
-                current_links = self.bot.page.eles('tag:a', timeout=3)
+                current_links = self.bot.page.locator('a').all()
                 for link in current_links:
-                    if link.states.is_displayed:
-                        href = link.attr('href')
+                    if link.is_visible():
+                        href = link.get_attribute('href')
                         if href and (href.startswith('https://www.instagram.com/') or href.startswith('/')):
                             path = href.replace('https://www.instagram.com', '').split('?')[0].strip('/')
                             
                             if path and '/' not in path:
                                 if path not in ignore_list and path != self.bot.username:
-                                    if link.text.strip():
+                                    if link.inner_text().strip():
                                         print(f"[IG-SCRAPER] Nalezen profil (/{path}/), přecházím na něj.")
-                                        link.click(by_js=True)
+                                        link.click(force=True)
                                         found_profile = True
                                         delay(4, 6)
                                         break 
@@ -277,7 +393,6 @@ class InstagramScraper:
             self.bot.open_url(f"{self.bot.base_url}{target_query.replace('@', '').replace(' ', '')}/")
             delay(4, 6)
 
-        # 2. ULOŽENÍ UŽIVATELE
         current_url = self.bot.page.url
         try:
             actual_username = current_url.split('instagram.com/')[-1].split('/')[0].split('?')[0]
@@ -286,42 +401,136 @@ class InstagramScraper:
 
         print("[IG-SCRAPER] Stahuji data o uživateli...")
         
-        followers_ele = self.bot.page.ele('xpath://a[contains(@href, "/followers")]//span', timeout=3)
-        followers_text = followers_ele.attr('title') if (followers_ele and followers_ele.attr('title')) else (followers_ele.text if followers_ele else "0")
-        followers_count = self.parse_number(followers_text)
-
-        bio_ele = self.bot.page.ele('xpath://h1[@dir="auto"]', timeout=2)
-        bio = bio_ele.text if bio_ele else ""
+        # OPRAVA: Komplexní extrakce profilu přes Javascript
+        profile_js = """
+        () => {
+            let header = document.querySelector('header');
+            if (!header) return {};
+            
+            let data = {
+                followers: "0",
+                following: "0",
+                bio: "",
+                display_name: "",
+                website: "",
+                profile_pic_url: "",
+                is_verified: 0,
+                texts: []
+            };
+            
+            // Followers
+            let flw_link = header.querySelector('a[href*="/followers/"]');
+            if (flw_link) {
+                let span = flw_link.querySelector('span[title]');
+                if (span) data.followers = span.getAttribute('title');
+                else data.followers = flw_link.innerText;
+            }
+            
+            // Following
+            let flg_link = header.querySelector('a[href*="/following/"]');
+            if (flg_link) {
+                let span = flg_link.querySelector('span:not([dir])');
+                if (span) data.following = span.innerText;
+                else data.following = flg_link.innerText;
+            }
+            
+            // Verifikace
+            if (header.querySelector('svg[aria-label="Ověřeno"], svg[aria-label="Verified"]')) {
+                data.is_verified = 1;
+            }
+            
+            // Web
+            let web_link = header.querySelector('a[target="_blank"]');
+            if (web_link) {
+                data.website = web_link.innerText.trim();
+            }
+            
+            // Profilovka
+            let img = header.querySelector('img');
+            if (img) data.profile_pic_url = img.getAttribute('src');
+            
+            // Extrakce všech textových elementů pro jméno a bio
+            let dirEls = Array.from(header.querySelectorAll('span[dir="auto"], h1[dir="auto"], h2[dir="auto"], div[dir="auto"]'));
+            let ignoreList = ['sledovat', 'zpráva', 'follow', 'message', 'příspěvky', 'sledující', 'sleduji', 'posts', 'followers', 'following', 'přidat do příběhu', 'add to story'];
+            
+            for(let el of dirEls) {
+                let t = el.innerText.trim();
+                if(!t) continue;
+                
+                let tLow = t.toLowerCase();
+                // Filtrování tlačítek a UI textů
+                if (ignoreList.includes(tLow) || tLow.includes('příspěvky') || tLow.includes('sledující')) continue;
+                
+                if (!data.texts.includes(t)) {
+                    data.texts.push(t);
+                }
+            }
+            
+            return data;
+        }
+        """
         
-        display_name_ele = self.bot.page.ele('xpath://span[@dir="auto" and contains(@class, "x1")]', timeout=2)
-        display_name = display_name_ele.text if display_name_ele else actual_username
+        try:
+            profile_data = self.bot.page.evaluate(profile_js)
+            
+            followers_count = self.parse_number(profile_data.get('followers', '0'))
+            following_count = self.parse_number(profile_data.get('following', '0'))
+            
+            display_name = actual_username
+            bio = ""
+            website = profile_data.get('website', None)
+            
+            # Očištění posbíraných textů a jejich přiřazení
+            texts = profile_data.get('texts', [])
+            clean_texts = []
+            for t in texts:
+                if t.lower() == actual_username.lower(): continue # Vynecháme username
+                if website and t == website: continue             # Vynecháme web
+                if re.match(r'^[\d\s,]+(?:mil\.|tis\.|m|k)?$', t.lower().replace('\xa0', ' ')): continue # Zbloudilá čísla
+                clean_texts.append(t)
+                
+            # Pokud zbyly texty: první je obvykle jméno (display name), druhý a další je bio
+            if len(clean_texts) > 0:
+                display_name = clean_texts[0]
+                if len(clean_texts) > 1:
+                    bio = "\n".join(clean_texts[1:])
+            
+            is_verified = profile_data.get('is_verified', 0)
+            profile_pic_url = profile_data.get('profile_pic_url', None)
 
+        except Exception as e:
+            print(f"[ERROR] Selhala extrakce metadat profilu: {e}")
+            followers_count, following_count, is_verified = 0, 0, 0
+            display_name = actual_username
+            bio, website, profile_pic_url = "", None, None
+
+        # Uložení rozšířených dat do DB
         user_id = self.db.upsert_user(
             platform="IG",
             username=actual_username,
             display_name=display_name,
             bio=bio,
-            followers_count=followers_count
+            followers_count=followers_count,
+            following_count=following_count,
+            website=website,
+            is_verified=is_verified,
+            profile_pic_url=profile_pic_url
         )
         print(f"[IG-SCRAPER] Profil uložen do DB (Sledujících: {followers_count}). Interní ID: {user_id}")
 
-        # 3. SBĚR URL PŘÍSPĚVKŮ (RESPEKTUJE LIMIT)
         print("[IG-SCRAPER] Skenuji zeď a sbírám URL příspěvků...")
         
         urls_to_scrape = []
         scroll_attempts_without_new = 0
-        
-        # Pojistka proti nekonečné smyčce, pokud limit je -1
         max_scroll_loops = 500 if limit == -1 else 100 
         
         loop_counter = 0
         while True:
-            # a) Sbírání
-            all_links = self.bot.page.eles('tag:a', timeout=2)
+            all_links = self.bot.page.locator('a').all()
             new_found = False
             
             for link in all_links:
-                href = link.attr('href')
+                href = link.get_attribute('href')
                 if href and ('/p/' in href or '/reel/' in href):
                     clean_href = href.split('?')[0]
                     full_url = f"https://www.instagram.com{clean_href}" if clean_href.startswith('/') else clean_href
@@ -330,18 +539,15 @@ class InstagramScraper:
                         urls_to_scrape.append(full_url)
                         new_found = True
                         
-                        # Kontrola limitu okamžitě po přidání
                         if limit != -1 and len(urls_to_scrape) >= limit:
                             break
             
             print(f"  -> Nalezeno {len(urls_to_scrape)} unikátních příspěvků...")
 
-            # b) Podmínka ukončení (Limit)
             if limit != -1 and len(urls_to_scrape) >= limit:
                 print(f"[IG-SCRAPER] Dosažen požadovaný limit {limit}.")
                 break
             
-            # c) Podmínka ukončení (Konec stránky)
             if not new_found:
                 scroll_attempts_without_new += 1
                 if scroll_attempts_without_new >= 4:
@@ -350,17 +556,14 @@ class InstagramScraper:
             else:
                 scroll_attempts_without_new = 0
 
-            # d) Bezpečnostní pojistka
             loop_counter += 1
             if limit == -1 and loop_counter > max_scroll_loops:
                 print("[WARNING] Dosažen interní bezpečnostní limit scrollu.")
                 break
 
-            # e) Scroll
-            self.bot.page.scroll.down(800)
+            self.bot.page.evaluate("window.scrollBy(0, 800)")
             delay(1.5, 3.0)
 
-        # 4. ITERACE A TĚŽBA DETAILŮ
         final_urls = urls_to_scrape[:limit] if limit != -1 else urls_to_scrape
         
         if not final_urls:

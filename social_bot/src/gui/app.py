@@ -217,7 +217,9 @@ class App(ctk.CTk):
     def stop_bot(self):
         if self.is_running:
             self.is_running = False
-            if self.current_bot: self.current_bot.close()
+            # Změna: Záměrně zde nevoláme self.current_bot.close().
+            # Vlákno (run_bot) si po změně is_running na False 
+            # samo vyskočí ze smyček a zavře prohlížeč bezpečně ve svém bloku finally.
             print("--- ZASTAVENO UŽIVATELEM ---")
 
 if __name__ == "__main__":

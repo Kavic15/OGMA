@@ -8,7 +8,6 @@ class InstagramBot(BaseBot):
         self.username = username
         self.password = password
         
-        # DOPLNĚNA CHYBĚJÍCÍ BASE URL
         self.base_url = "https://www.instagram.com/"
         
         self.auth = InstagramAuthenticator(self)

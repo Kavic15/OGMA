@@ -8,31 +8,31 @@ class XPostsModule:
         self.db = db
 
     def scrape_timeline(self, user_id, limit):
-        """
-        Scrapuje příspěvky z timeline. 
-        Vrací: (videos_queue, all_posts_queue)
-        """
         print("[X-POSTS] Sbírám příspěvky...")
         posts_collected = 0
         processed_post_ids = set()
         
-        posts_to_process_video = []   # Fronta pro videa (Fáze 2)
-        posts_for_comments = []       # Fronta pro komentáře (Fáze 3 - Všechny)
+        posts_to_process_video = []
+        posts_for_comments = []
         
         while True:
             if limit != -1 and posts_collected >= limit: break
             
-            articles = self.bot.page.eles('tag:article', timeout=2)
+            self.bot.page.wait_for_timeout(1000)
+            articles = self.bot.page.locator('article').all()
             new_in_batch = False
 
             for article in articles:
                 if limit != -1 and posts_collected >= limit: break
                 try:
-                    time_ele = article.ele('tag:time', timeout=0.05)
-                    if not time_ele: continue 
+                    time_ele = article.locator('time').first
+                    if time_ele.count() == 0: continue 
                     
-                    raw_href = time_ele.parent('tag:a').attr('href')
+                    # Nalezení nadřazeného odkazu k tagu time
+                    link_ele = article.locator('a:has(time)').first
+                    raw_href = link_ele.get_attribute('href')
                     if not raw_href: continue
+                    
                     full_url = raw_href if raw_href.startswith("http") else f"https://x.com{raw_href}"
                     platform_post_id = raw_href.split('/')[-1]
                     
@@ -40,35 +40,35 @@ class XPostsModule:
                     processed_post_ids.add(platform_post_id)
                     new_in_batch = True
                     
-                    # Text & Media
-                    text_ele = article.ele('@data-testid=tweetText', timeout=0.05)
-                    post_text = text_ele.text if text_ele else ""
+                    text_ele = article.locator('[data-testid="tweetText"]').first
+                    post_text = text_ele.inner_text() if text_ele.count() > 0 else ""
                     post_text, media_url, is_video = XUtils.extract_media(article, post_text)
                     
-                    timestamp = time_ele.attr('datetime')
+                    timestamp = time_ele.get_attribute('datetime')
                     
-                    # Stats
                     likes, shares, comments = 0, 0, 0
                     try:
-                        re_el = article.ele('@data-testid=reply', timeout=0.01); comments = XUtils.parse_number(re_el.text) if re_el else 0
-                        rt_el = article.ele('@data-testid=retweet', timeout=0.01); shares = XUtils.parse_number(rt_el.text) if rt_el else 0
-                        li_el = article.ele('@data-testid=like', timeout=0.01); likes = XUtils.parse_number(li_el.text) if li_el else 0
+                        re_el = article.locator('[data-testid="reply"]').first
+                        comments = XUtils.parse_number(re_el.inner_text()) if re_el.count() > 0 else 0
+                        
+                        rt_el = article.locator('[data-testid="retweet"]').first
+                        shares = XUtils.parse_number(rt_el.inner_text()) if rt_el.count() > 0 else 0
+                        
+                        li_el = article.locator('[data-testid="like"]').first
+                        likes = XUtils.parse_number(li_el.inner_text()) if li_el.count() > 0 else 0
                     except: pass
 
-                    # Uložit do DB
                     db_post_id = self.db.upsert_post(user_id, "X", platform_post_id, post_text, timestamp, likes, shares, comments, full_url, media_url)
                     posts_collected += 1
                     
                     print(f"[X-POSTS] ({posts_collected}) Tweet: {platform_post_id} | Video: {is_video}")
                     
-                    # Přidat do seznamu pro komentáře (všechny úspěšně stažené)
                     posts_for_comments.append({
                         'db_id': db_post_id,
                         'platform_id': platform_post_id,
                         'url': full_url
                     })
 
-                    # Pokud je to video, uložíme si pro sniffing (i když nefunguje 100%, logika tu zůstane)
                     if is_video:
                         posts_to_process_video.append({
                             'db_id': db_post_id,
@@ -80,15 +80,14 @@ class XPostsModule:
                     pass
 
             if not new_in_batch:
-                self.bot.page.scroll.down(400)
+                self.bot.page.evaluate("window.scrollBy(0, 400)")
                 delay(1)
-            self.bot.page.scroll.down(700)
+            self.bot.page.evaluate("window.scrollBy(0, 700)")
             delay(0.8, 1.5)
             
         return posts_to_process_video, posts_for_comments
 
     def process_videos(self, video_queue):
-        """2. Fáze: Projde seznam videí a získá m3u8 stream."""
         if not video_queue: return
 
         count = len(video_queue)
@@ -112,26 +111,51 @@ class XPostsModule:
 
     def _get_video_stream(self, post_url):
         print(f"  -> [SNIFFER] Jdu pro video: {post_url}")
+        video_url = None
         
-        self.bot.page.listen.start(targets="video.twimg.com")
-        self.bot.page.get(post_url)
+        def handle_response(response):
+            nonlocal video_url
+            try:
+                # 1. Analýza GraphQL
+                if "graphql" in response.url:
+                    # Klíčová oprava: odstranění escapování lomítek z JSONu
+                    text_body = response.text().replace('\\/', '/')
+                    
+                    # Zachytáváme .mp4 i .m3u8
+                    links = re.findall(r'(https://video\.twimg\.com/[^"\'\s]+\.(?:mp4|m3u8))', text_body)
+                    
+                    if links:
+                        # Prioritizace .mp4 před .m3u8, pokud jsou k dispozici oba formáty
+                        mp4s = [l for l in links if l.endswith('.mp4')]
+                        video_url = mp4s[0] if mp4s else links[0]
+                
+                # 2. Záchranná síť pro přímé requesty přehrávače
+                elif not video_url and "video.twimg.com" in response.url:
+                    if ".mp4" in response.url or ".m3u8" in response.url:
+                        video_url = response.url
+            except:
+                pass
+
+        self.bot.page.on("response", handle_response)
         
         try:
-            # Kliknout na video pro vynucení načtení
-            video_ele = self.bot.page.ele('@data-testid=videoPlayer', timeout=5)
-            if video_ele: video_ele.click(by_js=True)
-        except: pass
-
-        video_url = None
-        start_time = time.time()
-        
-        while time.time() - start_time < 6:
-            for packet in self.bot.page.listen.steps(timeout=0.5):
-                if ".m3u8" in packet.url and "video.twimg.com" in packet.url:
-                    video_url = packet.url
+            self.bot.page.goto(post_url, wait_until="domcontentloaded", timeout=15000)
+            
+            # Vynucené kliknutí na video pro spuštění přehrávání a odeslání requestu
+            video_ele = self.bot.page.locator('[data-testid="videoPlayer"]').first
+            if video_ele.is_visible(timeout=5000):
+                video_ele.click(force=True)
+            
+            start_time = time.time()
+            while time.time() - start_time < 8:
+                if video_url:
                     print(f"  -> [SNIFFER] ÚSPĚCH! URL zachycena.")
                     break
-            if video_url: break
-        
-        self.bot.page.listen.stop()
+                self.bot.page.wait_for_timeout(500)
+                
+        except Exception as e: 
+            print(f"  -> [SNIFFER ERROR] {e}")
+        finally:
+            self.bot.page.remove_listener("response", handle_response)
+            
         return video_url

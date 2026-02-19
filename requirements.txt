@@ -3,3 +3,5 @@ customtkinter
 keyboard
 pillow
 requests
+playwright-stealth
+playwright

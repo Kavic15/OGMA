@@ -7,60 +7,49 @@ class XProfileModule:
         self.db = db
 
     def scrape_metadata(self, actual_username):
-        """Vytěží bio, followers, location, web, datum registrace atd."""
         print(f"[X-PROFILE] Těžím metadata pro @{actual_username}...")
         
         try:
-            # Display Name + Verifikace
-            display_name_ele = self.bot.page.ele('@data-testid=UserName', timeout=3)
-            if display_name_ele:
-                display_name = display_name_ele.text.split('\n')[0]
-                is_verified = 1 if display_name_ele.ele('tag:svg@aria-label=Verified account', timeout=0.1) else 0
+            display_name_loc = self.bot.page.locator('[data-testid="UserName"]').first
+            if display_name_loc.count() > 0:
+                display_name = display_name_loc.inner_text().split('\n')[0]
+                is_verified = 1 if display_name_loc.locator('svg[aria-label="Verified account"]').count() > 0 else 0
             else:
                 display_name = actual_username
                 is_verified = 0
 
-            # Bio
-            bio_ele = self.bot.page.ele('@data-testid=UserDescription', timeout=2)
-            bio = bio_ele.text if bio_ele else ""
+            bio_loc = self.bot.page.locator('[data-testid="UserDescription"]').first
+            bio = bio_loc.inner_text() if bio_loc.count() > 0 else ""
             
-            # Location
-            loc_ele = self.bot.page.ele('@data-testid=UserLocation', timeout=1)
-            location = loc_ele.text if loc_ele else None
+            loc_ele = self.bot.page.locator('[data-testid="UserLocation"]').first
+            location = loc_ele.inner_text() if loc_ele.count() > 0 else None
 
-            # Website
-            web_ele = self.bot.page.ele('@data-testid=UserUrl', timeout=1)
-            website = web_ele.text if web_ele else None
+            web_ele = self.bot.page.locator('[data-testid="UserUrl"]').first
+            website = web_ele.inner_text() if web_ele.count() > 0 else None
 
-            # Joined Date
-            join_ele = self.bot.page.ele('@data-testid=UserJoinDate', timeout=1)
-            joined_date = join_ele.text if join_ele else None
+            join_ele = self.bot.page.locator('[data-testid="UserJoinDate"]').first
+            joined_date = join_ele.inner_text() if join_ele.count() > 0 else None
 
-            # Followers
-            followers_ele = self.bot.page.ele('xpath://a[contains(@href, "/followers")]/span[1]|//a[contains(@href, "/verified_followers")]/span[1]', timeout=2)
-            followers_count = XUtils.parse_number(followers_ele.text if followers_ele else "0")
+            followers_ele = self.bot.page.locator('xpath=//a[contains(@href, "/followers")]/span[1] | //a[contains(@href, "/verified_followers")]/span[1]').first
+            followers_count = XUtils.parse_number(followers_ele.inner_text() if followers_ele.count() > 0 else "0")
 
-            # Following
-            following_ele = self.bot.page.ele('xpath://a[contains(@href, "/following")]/span[1]', timeout=2)
-            following_count = XUtils.parse_number(following_ele.text if following_ele else "0")
+            following_ele = self.bot.page.locator('xpath=//a[contains(@href, "/following")]/span[1]').first
+            following_count = XUtils.parse_number(following_ele.inner_text() if following_ele.count() > 0 else "0")
 
-            # Banner
             banner_url = None
             try:
-                banner_link = self.bot.page.ele('xpath://a[contains(@href, "/header_photo")]//img', timeout=1)
-                if banner_link: banner_url = banner_link.attr('src')
+                banner_link = self.bot.page.locator('xpath=//a[contains(@href, "/header_photo")]//img').first
+                if banner_link.count() > 0:
+                    banner_url = banner_link.get_attribute('src')
             except: pass
 
-            # Profile Pic (s HD logikou)
             profile_pic_url = self._get_hd_profile_pic()
 
         except Exception as e:
             print(f"[ERROR] Chyba čtení metadat: {e}")
-            # Fallback hodnoty
             display_name = actual_username; bio = ""; followers_count = 0; following_count = 0
             location = None; website = None; joined_date = None; is_verified = 0; banner_url = None; profile_pic_url = None
 
-        # Uložení do DB
         user_id = self.db.upsert_user(
             platform="X", 
             username=actual_username, 
@@ -81,23 +70,28 @@ class XProfileModule:
     def _get_hd_profile_pic(self):
         profile_pic_url = None
         try:
-            avatar_img = self.bot.page.ele('css:img[alt="Opens profile photo"]', timeout=1)
-            if not avatar_img: avatar_img = self.bot.page.ele('css:img[alt="Square profile picture and Opens profile photo"]', timeout=1)
-            if not avatar_img: avatar_img = self.bot.page.ele('xpath://div[contains(@data-testid, "UserAvatar-Container")]//img', timeout=1)
+            avatar_img = self.bot.page.locator('img[alt="Opens profile photo"]').first
+            if avatar_img.count() == 0: 
+                avatar_img = self.bot.page.locator('img[alt="Square profile picture and Opens profile photo"]').first
+            if avatar_img.count() == 0: 
+                avatar_img = self.bot.page.locator('xpath=//div[contains(@data-testid, "UserAvatar-Container")]//img').first
             
-            if avatar_img:
-                profile_pic_url = avatar_img.attr('src')
-                # Pokus o HD verzi
+            if avatar_img.count() > 0:
+                profile_pic_url = avatar_img.get_attribute('src')
                 if profile_pic_url and any(x in profile_pic_url for x in ['_bigger', '_mini', '_normal']):
-                    photo_link = self.bot.page.ele('xpath://div[contains(@data-testid, "UserAvatar-Container")]//a[contains(@href, "/photo")]', timeout=2)
-                    if photo_link:
+                    photo_link = self.bot.page.locator('xpath=//div[contains(@data-testid, "UserAvatar-Container")]//a[contains(@href, "/photo")]').first
+                    if photo_link.count() > 0:
                         photo_link.click()
-                        large_img = self.bot.page.ele('xpath://div[@data-testid="swipe-to-dismiss"]//img', timeout=3)
-                        if large_img: profile_pic_url = large_img.attr('src')
+                        large_img = self.bot.page.locator('xpath=//div[@data-testid="swipe-to-dismiss"]//img').first
+                        large_img.wait_for(state="visible", timeout=3000)
+                        if large_img.count() > 0:
+                            profile_pic_url = large_img.get_attribute('src')
                         
-                        close_btn = self.bot.page.ele('css:div[aria-label="Close"]', timeout=1) or self.bot.page.ele('css:div[aria-label="Zavřít"]', timeout=1)
-                        if close_btn: close_btn.click()
-                        else: self.bot.page.back()
+                        close_btn = self.bot.page.locator('div[aria-label="Close"], div[aria-label="Zavřít"]').first
+                        if close_btn.count() > 0: 
+                            close_btn.click()
+                        else: 
+                            self.bot.page.go_back()
                         delay(0.5)
         except: pass
         return profile_pic_url

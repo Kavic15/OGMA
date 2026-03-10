@@ -1,6 +1,7 @@
 import time
 from src.utils.human_input import delay
 from .utils import XUtils
+import re
 
 class XPostsModule:
     def __init__(self, bot, db):
@@ -14,6 +15,8 @@ class XPostsModule:
         
         posts_to_process_video = []
         posts_for_comments = []
+        
+        scroll_attempts_without_new = 0
         
         while True:
             if limit != -1 and posts_collected >= limit: break
@@ -79,9 +82,18 @@ class XPostsModule:
                 except Exception: 
                     pass
 
+            # NOVÉ: Logika proti zacyklení
             if not new_in_batch:
+                scroll_attempts_without_new += 1
+                if scroll_attempts_without_new >= 4:
+                    print("[X-POSTS] Dosažen konec profilu nebo účet nemá (další) příspěvky.")
+                    break
+                    
                 self.bot.page.evaluate("window.scrollBy(0, 400)")
                 delay(1)
+            else:
+                scroll_attempts_without_new = 0
+
             self.bot.page.evaluate("window.scrollBy(0, 700)")
             delay(0.8, 1.5)
             

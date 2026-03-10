@@ -4,12 +4,6 @@ import uuid
 from pathlib import Path
 from datetime import datetime, timezone
 
-import sqlite3
-import os
-import uuid
-from pathlib import Path
-from datetime import datetime, timezone
-
 class DatabaseManager:
     def __init__(self, db_name="osint.db"):
         current_file = Path(__file__).resolve()
@@ -105,6 +99,17 @@ class DatabaseManager:
             )
         ''')
         
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS connections (
+                id TEXT PRIMARY KEY,
+                platform TEXT NOT NULL,
+                source_username TEXT NOT NULL,
+                target_username TEXT NOT NULL,
+                connection_type TEXT NOT NULL,
+                scraped_at TIMESTAMP,
+                UNIQUE(platform, source_username, target_username, connection_type)
+            )
+        ''')
         self.conn.commit()
 
     def _migrate_db(self):
@@ -238,7 +243,28 @@ class DatabaseManager:
         except Exception as e:
             print(f"[DB ERROR] Chyba při hledání handle: {e}")
             return None
+        
+    def upsert_connection(self, platform, source_username, target_username, connection_type="follower"):
+        now = datetime.now(timezone.utc).isoformat()
+        self.cursor.execute('''
+            SELECT id FROM connections 
+            WHERE platform = ? AND source_username = ? AND target_username = ? AND connection_type = ?
+        ''', (platform, source_username, target_username, connection_type))
+        row = self.cursor.fetchone()
+        
+        if row:
+            conn_id = row[0]
+            self.cursor.execute('UPDATE connections SET scraped_at = ? WHERE id = ?', (now, conn_id))
+        else:
+            conn_id = str(uuid.uuid4())
+            self.cursor.execute('''
+                INSERT INTO connections (id, platform, source_username, target_username, connection_type, scraped_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (conn_id, platform, source_username, target_username, connection_type, now))
+        self.conn.commit()
+        return conn_id
 
     def close(self):
         if self.conn:
+            self.cursor.close()
             self.conn.close()

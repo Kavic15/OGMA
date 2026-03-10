@@ -130,11 +130,10 @@ class App(ctk.CTk):
                 self.users_map[f"{user['ID']} - {user['name']}"] = user
         except: pass
 
-    # --- BOT LOGIC (Zůstává zde kvůli Threadingu a přístupu ke stavu) ---
+    # --- BOT LOGIC ---
     def start_thread(self, platform, action):
         if self.is_running: messagebox.showwarning("Busy", "Bot již běží."); return
         
-        # Data taháme z DashboardFrame
         key = self.frame_dash.user_var.get()
         if not key: messagebox.showerror("Chyba", "Vyber identitu."); return
         
@@ -145,24 +144,35 @@ class App(ctk.CTk):
         target_input = self.frame_dash.target_var.get().strip()
         if action == "scrape" and not target_input: messagebox.showwarning("Chyba", "Zadej cíl."); return
         
+        # Načtení limitů
         limit = 10
-        if self.frame_dash.scrape_all_var.get(): limit = -1
+        if self.frame_dash.scrape_all_var.get(): 
+            limit = -1
         else:
             try: limit = int(self.frame_dash.limit_var.get())
-            except ValueError: messagebox.showerror("Chyba", "Limit musí být číslo."); return
+            except ValueError: messagebox.showerror("Chyba", "Limit příspěvků musí být číslo."); return
+            
+        try: comments_limit = int(self.frame_dash.comments_limit_var.get())
+        except ValueError: messagebox.showerror("Chyba", "Limit komentářů musí být číslo."); return
         
         self.is_running = True
         txt_limit = "VŠE" if limit == -1 else str(limit)
-        self.status_label.configure(text=f"● Běží: {platform} {action} (Limit: {txt_limit})", text_color=COLORS["primary"])
+        self.status_label.configure(text=f"● Běží: {platform} {action} (P: {txt_limit}, K: {comments_limit})", text_color=COLORS["primary"])
+
+        try: followers_limit = int(self.frame_dash.followers_limit_var.get())
+        except ValueError: messagebox.showerror("Chyba", "Limit sledujících musí být číslo."); return
         
-        # Vyčistit log
+        try: following_limit = int(self.frame_dash.following_limit_var.get())
+        except ValueError: messagebox.showerror("Chyba", "Limit 'Sleduje' musí být číslo."); return
+        
+        # Vyčištění logu a start vlákna s novým argumentem
         self.frame_dash.log_box.configure(state="normal")
         self.frame_dash.log_box.delete(1.0, tk.END)
         self.frame_dash.log_box.configure(state="disabled")
-        
-        threading.Thread(target=self.run_bot, args=(platform, social['username'], social['password'], key.split()[0], action, target_input, limit), daemon=True).start()
+        # Odeslání do threadu (přidán argument following_limit)
+        threading.Thread(target=self.run_bot, args=(platform, social['username'], social['password'], key.split()[0], action, target_input, limit, comments_limit, followers_limit, following_limit), daemon=True).start()
 
-    def run_bot(self, platform, u, p, uid, action, target_input, limit):
+    def run_bot(self, platform, u, p, uid, action, target_input, limit, comments_limit, followers_limit, following_limit):
         try:
             if platform == "instagram": bot = InstagramBot(u, p, uid)
             else: bot = XBot(u, p, uid)
@@ -189,7 +199,7 @@ class App(ctk.CTk):
                     
                     print(f"\n=== CÍL {i+1}/{total}: {target} ===")
                     try:
-                        bot.scraper.scrape_profile(target, limit)
+                        bot.scraper.scrape_profile(target, limit, comments_limit, followers_limit, following_limit)
                     except Exception as e:
                         print(f"[ERROR] Chyba u cíle {target}: {e}")
                     

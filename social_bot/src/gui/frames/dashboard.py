@@ -5,7 +5,7 @@ from src.gui.theme import COLORS
 class DashboardFrame(ctk.CTkFrame):
     def __init__(self, parent, controller):
         super().__init__(parent, fg_color="transparent")
-        self.controller = controller # Reference na hlavní App
+        self.controller = controller
         self.setup_ui()
 
     def setup_ui(self):
@@ -41,32 +41,56 @@ class DashboardFrame(ctk.CTkFrame):
         )
         self.target_entry.pack(fill="x", pady=(0, 15))
 
-        # Limity
-        limit_frame = ctk.CTkFrame(input_container, fg_color="transparent")
-        limit_frame.pack(fill="x")
-        ctk.CTkLabel(limit_frame, text="LIMIT PŘÍSPĚVKŮ", font=("Segoe UI", 11, "bold"), text_color=COLORS["text_dim"]).pack(anchor="w", pady=(0, 5))
+        # Limity (Kontejner pro všechny čtyři limity vedle sebe)
+        limits_container = ctk.CTkFrame(input_container, fg_color="transparent")
+        limits_container.pack(fill="x")
+        limits_container.grid_columnconfigure((0, 1, 2, 3), weight=1)
+
+        # -- Sloupec 1: Příspěvky --
+        limit_frame = ctk.CTkFrame(limits_container, fg_color="transparent")
+        limit_frame.grid(row=0, column=0, sticky="nw", padx=(0, 5))
+        ctk.CTkLabel(limit_frame, text="PŘÍSPĚVKY", font=("Segoe UI", 11, "bold"), text_color=COLORS["text_dim"]).pack(anchor="w", pady=(0, 5))
         
         limit_inner = ctk.CTkFrame(limit_frame, fg_color="transparent")
         limit_inner.pack(fill="x")
         
         self.scrape_all_var = ctk.BooleanVar(value=False)
-        self.chk_all = ctk.CTkCheckBox(
-            limit_inner, text="Stáhnout vše", variable=self.scrape_all_var, 
-            command=self.toggle_limit_entry, fg_color=COLORS["primary"], 
-            hover_color=COLORS["primary_hover"], border_color=COLORS["border"], font=("Segoe UI", 13)
-        )
-        self.chk_all.pack(side="left", padx=(0, 20))
+        self.chk_all = ctk.CTkCheckBox(limit_inner, text="Vše", variable=self.scrape_all_var, command=self.toggle_limit_entry, fg_color=COLORS["primary"], hover_color=COLORS["primary_hover"], border_color=COLORS["border"], font=("Segoe UI", 13), width=45)
+        self.chk_all.pack(side="left", padx=(0, 5))
         
         self.limit_var = ctk.StringVar(value="10")
-        self.limit_entry = ctk.CTkEntry(
-            limit_inner, textvariable=self.limit_var, width=100, height=35, 
-            font=("Segoe UI", 13), border_color=COLORS["border"], 
-            fg_color=COLORS["panel_bg"], text_color=COLORS["text_main"]
-        )
+        self.limit_entry = ctk.CTkEntry(limit_inner, textvariable=self.limit_var, width=50, height=35, font=("Segoe UI", 13), border_color=COLORS["border"], fg_color=COLORS["panel_bg"], text_color=COLORS["text_main"])
         self.limit_entry.pack(side="left")
 
+        # -- Sloupec 2: Komentáře --
+        comm_limit_frame = ctk.CTkFrame(limits_container, fg_color="transparent")
+        comm_limit_frame.grid(row=0, column=1, sticky="nw", padx=5)
+        ctk.CTkLabel(comm_limit_frame, text="KOMENTÁŘE", font=("Segoe UI", 11, "bold"), text_color=COLORS["text_dim"]).pack(anchor="w", pady=(0, 5))
+        
+        self.comments_limit_var = ctk.StringVar(value="50")
+        self.comments_limit_entry = ctk.CTkEntry(comm_limit_frame, textvariable=self.comments_limit_var, width=70, height=35, font=("Segoe UI", 13), border_color=COLORS["border"], fg_color=COLORS["panel_bg"], text_color=COLORS["text_main"])
+        self.comments_limit_entry.pack(side="left")
+
+        # -- Sloupec 3: Sledující (Followers) --
+        fol_limit_frame = ctk.CTkFrame(limits_container, fg_color="transparent")
+        fol_limit_frame.grid(row=0, column=2, sticky="nw", padx=5)
+        ctk.CTkLabel(fol_limit_frame, text="SLEDUJÍCÍ", font=("Segoe UI", 11, "bold"), text_color=COLORS["text_dim"]).pack(anchor="w", pady=(0, 5))
+        
+        self.followers_limit_var = ctk.StringVar(value="50")
+        self.followers_limit_entry = ctk.CTkEntry(fol_limit_frame, textvariable=self.followers_limit_var, width=70, height=35, font=("Segoe UI", 13), border_color=COLORS["border"], fg_color=COLORS["panel_bg"], text_color=COLORS["text_main"])
+        self.followers_limit_entry.pack(side="left")
+
+        # -- Sloupec 4: Sleduje (Following) --
+        following_limit_frame = ctk.CTkFrame(limits_container, fg_color="transparent")
+        following_limit_frame.grid(row=0, column=3, sticky="nw", padx=(5, 0))
+        ctk.CTkLabel(following_limit_frame, text="SLEDUJE", font=("Segoe UI", 11, "bold"), text_color=COLORS["text_dim"]).pack(anchor="w", pady=(0, 5))
+        
+        self.following_limit_var = ctk.StringVar(value="50")
+        self.following_limit_entry = ctk.CTkEntry(following_limit_frame, textvariable=self.following_limit_var, width=70, height=35, font=("Segoe UI", 13), border_color=COLORS["border"], fg_color=COLORS["panel_bg"], text_color=COLORS["text_main"])
+        self.following_limit_entry.pack(side="left")
+
         # 2. AKCE
-        ctk.CTkLabel(self, text="AKCE", font=("Segoe UI", 11, "bold"), text_color=COLORS["text_dim"]).pack(anchor="w", pady=(10, 5))
+        ctk.CTkLabel(self, text="AKCE", font=("Segoe UI", 11, "bold"), text_color=COLORS["text_dim"]).pack(anchor="w", pady=(20, 5))
         actions_frame = ctk.CTkFrame(self, fg_color="transparent")
         actions_frame.pack(fill="x", pady=(0, 20))
         actions_frame.grid_columnconfigure((0, 1), weight=1)

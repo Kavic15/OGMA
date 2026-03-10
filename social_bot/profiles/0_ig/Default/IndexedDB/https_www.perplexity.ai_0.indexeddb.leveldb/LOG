@@ -1,0 +1,5 @@
+2026/02/11-17:45:01.172 35c4 Creating DB C:\Ogma\social_bot\profiles\0_ig\Default\IndexedDB\https_www.perplexity.ai_0.indexeddb.leveldb since it was missing.
+2026/02/11-17:45:01.180 35c4 Reusing MANIFEST C:\Ogma\social_bot\profiles\0_ig\Default\IndexedDB\https_www.perplexity.ai_0.indexeddb.leveldb/MANIFEST-000001
+2026/02/11-17:45:04.100 6948 Level-0 table #5: started
+2026/02/11-17:45:04.113 6948 Level-0 table #5: 2403824 bytes OK
+2026/02/11-17:45:04.115 6948 Delete type=0 #3

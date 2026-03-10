@@ -5,6 +5,8 @@ customtkinter
 keyboard
 pillow
 requests
+playwright-stealth
+playwright
 ```
 
 ## Soubor: __init__.py
@@ -90,39 +92,39 @@ class InstagramAuthenticator:
         self.bot.open_url(self.bot.base_url)
         
         print("[IG] Kontroluji stav přihlášení...")
-        # 1. RYCHLÁ KONTROLA SESSION (přesunuto na začátek pro okamžité přeskočení)
-        if self.bot.page.ele('css:svg[aria-label="Domů"]', timeout=3) or self.bot.page.ele('css:svg[aria-label="Home"]', timeout=3):
-            print("[IG] Již přihlášeno (ze session). Přeskakuji login a cookies.")
-            return
+        try:
+            home_icon = self.bot.page.locator('svg[aria-label="Domů"], svg[aria-label="Home"]').first
+            if home_icon.is_visible(timeout=3000):
+                print("[IG] Již přihlášeno (ze session). Přeskakuji login a cookies.")
+                return
+        except:
+            pass
 
-        # 2. LIKVIDACE COOKIES (Spustí se jen u prvního přihlášení)
         print("[IG] Kontroluji Cookies okna...")
         cookie_keywords = ['Povolit', 'Odmítnout', 'Allow', 'Decline']
         for word in cookie_keywords:
-            # Rychlé hledání prvního tlačítka (timeout 0.5s místo dlouhého čekání)
-            btn = self.bot.page.ele(f'text:{word}', timeout=0.5)
-            if btn and btn.states.is_displayed:
-                try:
-                    btn.click(by_js=True)
+            try:
+                btn = self.bot.page.get_by_text(word, exact=False).first
+                if btn.is_visible(timeout=500):
+                    btn.click(force=True)
                     print(f"[IG] Odkliknuto cookie tlačítko: '{word}'")
                     delay(1.5)
                     break
-                except:
-                    pass
+            except:
+                pass
 
-        # 3. HLEDÁNÍ PŘIHLÁŠOVACÍHO FORMULÁŘE
-        all_login_inputs = self.bot.page.eles('@name=email') + self.bot.page.eles('@name=username')
-        all_pass_inputs = self.bot.page.eles('@name=pass') + self.bot.page.eles('@name=password')
+        all_login_inputs = self.bot.page.locator('input[name="email"], input[name="username"]').all()
+        all_pass_inputs = self.bot.page.locator('input[name="pass"], input[name="password"]').all()
         
         login_input = None
         for inp in all_login_inputs:
-            if inp.states.is_displayed:
+            if inp.is_visible():
                 login_input = inp
                 break
                 
         pass_input = None
         for inp in all_pass_inputs:
-            if inp.states.is_displayed:
+            if inp.is_visible():
                 pass_input = inp
                 break
 
@@ -130,28 +132,31 @@ class InstagramAuthenticator:
             print("[IG] Nevidím viditelný login formulář, ale ani znaky přihlášení.")
             return
 
-        # 4. SAMOTNÝ LOGIN
         print("[IG] Zadávám přihlašovací údaje...")
-        login_input.input(self.bot.username)
+        login_input.fill("")
+        login_input.press_sequentially(self.bot.username, delay=150)
         delay(0.5, 1)
         
         if pass_input:
-            pass_input.input(self.bot.password)
+            pass_input.fill("")
+            pass_input.press_sequentially(self.bot.password, delay=150)
         delay(1, 2)
         
-        submit_btn = self.bot.page.ele('@type=submit', timeout=2)
-        if submit_btn and submit_btn.states.is_displayed:
-            submit_btn.click(by_js=True)
+        submit_btn = self.bot.page.locator('button[type="submit"]').first
+        if submit_btn.is_visible(timeout=2000):
+            submit_btn.click(force=True)
         else:
-            login_btns = self.bot.page.eles('text:Přihlásit') + self.bot.page.eles('text:Log in')
-            for btn in login_btns:
-                if btn.states.is_displayed:
-                    btn.click(by_js=True)
-                    break
+            try:
+                login_btn = self.bot.page.get_by_text('Přihlásit', exact=False).first
+                if not login_btn.is_visible():
+                    login_btn = self.bot.page.get_by_text('Log in', exact=False).first
+                if login_btn.is_visible():
+                    login_btn.click(force=True)
+            except:
+                pass
             
         delay(5, 8)
         
-        # 5. ÚKLID PO PŘIHLÁŠENÍ
         print("[IG] Provádím úklid po přihlášení...")
         self.bot.handle_popups(['Nyní ne', 'Not Now', 'Uložit', 'Save'])
         print("[IG] Přihlašovací proces dokončen.")
@@ -169,7 +174,6 @@ class InstagramBot(BaseBot):
         self.username = username
         self.password = password
         
-        # DOPLNĚNA CHYBĚJÍCÍ BASE URL
         self.base_url = "https://www.instagram.com/"
         
         self.auth = InstagramAuthenticator(self)
@@ -181,10 +185,10 @@ class InstagramBot(BaseBot):
 
 ## Soubor: social_bot\src\bots\instagram\scraper.py
 ```py
-from src.utils.human_input import delay, human_typing
+from src.utils.human_input import delay
 from src.core.database import DatabaseManager
 import re
-import time
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 class InstagramScraper:
     def __init__(self, bot):
@@ -194,13 +198,26 @@ class InstagramScraper:
     def parse_number(self, text):
         if not text: 
             return 0
-        text = text.upper().replace(',', '').replace(' ', '').replace('.', '')
+        
+        # Odstranění nedělitelných mezer (\xa0) a všech dalších whitespace znaků
+        text = str(text).upper().replace('\xa0', '').replace('&NBSP;', '')
+        text = re.sub(r'\s+', '', text)
+        
+        if 'TIS' in text:
+            text = text.replace('TIS.', 'K').replace('TIS', 'K')
+            
+        text = text.replace('TOSEMILÍBÍ', '').replace('LIKES', '')
+        text = text.replace(',', '.')
+        
         match = re.search(r'([\d\.]+)([KMB]?)', text)
         if not match: 
             return 0
             
         num_str, suffix = match.groups()
-        num = float(num_str)
+        try:
+            num = float(num_str)
+        except:
+            return 0
         
         if suffix == 'K': num *= 1000
         elif suffix == 'M': num *= 1000000
@@ -208,34 +225,128 @@ class InstagramScraper:
         
         return int(num)
 
-    def scrape_post_and_comments(self, db_user_id, post_url):
+    def scrape_post_and_comments(self, db_user_id, post_url, comments_limit=50):
         print(f"\n  -> [IG-SCRAPER] Otevírám příspěvek: {post_url}")
         self.bot.open_url(post_url)
         delay(3, 5)
 
         platform_post_id = post_url.rstrip('/').split('/')[-1]
+        
+        current_url = self.bot.page.url
+        try:
+            actual_username = current_url.split('instagram.com/')[-1].split('/')[0].split('?')[0]
+        except:
+            actual_username = ""
 
-        post_text_ele = self.bot.page.ele('xpath://h1[@dir="auto"]', timeout=2)
-        post_text = post_text_ele.text if post_text_ele else ""
+        post_container = self.bot.page.locator('main, article, [role="dialog"]').first
+        
+        # 1. Extrakce textu příspěvku
+        post_text = ""
+        h1_els = post_container.locator('h1[dir="auto"]').all()
+        for h1 in h1_els:
+            txt = h1.inner_text()
+            if txt and txt != actual_username:
+                post_text += txt + "\n"
+                
+        if not post_text.strip():
+            span_els = post_container.locator('span[dir="auto"]').all()
+            for sp in span_els[:5]:
+                txt = sp.inner_text()
+                if txt and txt != actual_username and len(txt) > 5 and not re.match(r'^\d+\s+[hdwmsčty]$', txt, re.IGNORECASE):
+                    post_text = txt
+                    break
+        post_text = post_text.strip()
 
-        media_url = None
-        img_ele = self.bot.page.ele('xpath://article//img', timeout=1)
-        if img_ele:
-            media_url = img_ele.attr('src')
-            if not post_text: post_text = "[OBSAHUJE FOTKU]"
-        else:
-            video_ele = self.bot.page.ele('tag:video', timeout=1)
-            if video_ele:
-                media_url = video_ele.attr('src')
-                if not post_text: post_text = "[OBSAHUJE VIDEO]"
+        # 2. Extrakce média (Podpora kolotočů s využitím JS evaluace pro ignorování mřížky)
+        media_urls = []
+        is_video = False
+        
+        for _ in range(15):
+            # Videa
+            for v in post_container.locator('video').all():
+                try:
+                    if v.evaluate("el => el.closest('a') !== null"):
+                        continue
+                        
+                    src = v.get_attribute('src') or v.get_attribute('poster')
+                    if src and not src.startswith('blob:'):
+                        src = src.replace('&amp;', '&')
+                        if src not in media_urls:
+                            media_urls.append(src)
+                            is_video = True
+                except:
+                    pass
+            
+            # Fotky
+            for img in post_container.locator('div._aagv img, ul li img').all():
+                try:
+                    if img.evaluate("el => el.closest('a') !== null"):
+                        continue
+                        
+                    alt = (img.get_attribute('alt') or "").lower()
+                    src = img.get_attribute('src') or ""
+                    
+                    if "profile" not in alt and "profilov" not in alt and "data:image" not in src:
+                        src = src.replace('&amp;', '&')
+                        if src and src not in media_urls:
+                            media_urls.append(src)
+                except:
+                    pass
+            
+            # Pokus o posun kolotoče na další fotku
+            try:
+                next_btn = post_container.locator('button[aria-label="Další"], button[aria-label="Next"]').first
+                if next_btn.is_visible(timeout=500):
+                    next_btn.click(force=True)
+                    self.bot.page.wait_for_timeout(800)
+                else:
+                    break
+            except:
+                break
 
-        likes_ele = self.bot.page.ele('xpath://a[contains(@href, "/liked_by/")]//span', timeout=1)
-        if not likes_ele:
-            likes_ele = self.bot.page.ele('xpath://section//span[contains(text(), "To se mi líbí") or contains(text(), "likes")]', timeout=1)
-        likes_count = self.parse_number(likes_ele.text if likes_ele else "0")
+        if not post_text:
+            if is_video:
+                post_text = "[OBSAHUJE VIDEO]"
+            elif media_urls:
+                post_text = "[OBSAHUJE FOTKU]"
 
-        time_ele = self.bot.page.ele('tag:time', timeout=1)
-        timestamp = time_ele.attr('datetime') if time_ele else ""
+        final_media_url = ";".join(media_urls) if media_urls else None
+
+        # 3. Extrakce statistik
+        stats_js = """
+        (container) => {
+            let likes = "0";
+            let comments = "0";
+            if(!container) container = document;
+            
+            let svgs = container.querySelectorAll('svg');
+            for(let svg of svgs) {
+                let label = svg.getAttribute('aria-label');
+                if (label === 'To se mi líbí' || label === 'Like') {
+                    let btn = svg.closest('div[role="button"], a');
+                    if (btn && btn.innerText.match(/\\d/)) {
+                        likes = btn.innerText;
+                    }
+                } else if (label === 'Komentář' || label === 'Comment') {
+                    let btn = svg.closest('div[role="button"], a');
+                    if (btn && btn.innerText.match(/\\d/)) {
+                        comments = btn.innerText;
+                    }
+                }
+            }
+            return {likes, comments};
+        }
+        """
+        try:
+            post_element_handle = post_container.element_handle()
+            stats_data = self.bot.page.evaluate(stats_js, post_element_handle)
+            likes_count = self.parse_number(stats_data.get('likes', '0'))
+            comments_count = self.parse_number(stats_data.get('comments', '0'))
+        except:
+            likes_count, comments_count = 0, 0
+
+        time_loc = post_container.locator('time').first
+        timestamp = time_loc.get_attribute('datetime') if time_loc.count() > 0 else ""
 
         db_post_id = self.db.upsert_post(
             user_id=db_user_id,
@@ -245,20 +356,22 @@ class InstagramScraper:
             timestamp_posted=timestamp,
             likes_count=likes_count,
             shares_count=0, 
-            comments_count=0, 
+            comments_count=comments_count, 
             url=post_url,
-            media_url=media_url
+            media_url=final_media_url
         )
-        print(f"  -> [IG-SCRAPER] Uložen příspěvek ID: {platform_post_id} | Lajky: {likes_count}")
+        print(f"  -> [IG-SCRAPER] Uložen příspěvek ID: {platform_post_id} | Lajky: {likes_count} | Komentáře: {comments_count} | Média: {len(media_urls)}")
 
-        print(f"  -> [IG-SCRAPER] Těžím komentáře k tomuto příspěvku...")
+        # --- Těžba komentářů ---
+        print(f"  -> [IG-SCRAPER] Těžím komentáře k tomuto příspěvku (Limit: {comments_limit})...")
         comments_collected = 0
         processed_comment_ids = set()
-        max_comments = 50
+        
+        max_comments = comments_limit
 
-        # --- JS INJEKCE PRO KOMENTÁŘE (ZACHOVÁNO) ---
+        # OPRAVENÝ SKRIPT PRO KOMENTÁŘE
         js_extract_comments = """
-        function extract() {
+        () => {
             var results = [];
             var times = document.querySelectorAll('time');
             for (var i = 0; i < times.length; i++) {
@@ -283,12 +396,20 @@ class InstagramScraper:
                 }
                 
                 var textContent = "";
-                var dirEls = block.querySelectorAll('span[dir="auto"], div[dir="auto"]');
+                var dirEls = block.querySelectorAll('span[dir="auto"], div[dir="auto"], span');
                 for (var k = 0; k < dirEls.length; k++) {
                     var txt = dirEls[k].innerText.trim();
                     var ignoreWords = ['Odpovědět', 'Reply', 'Zobrazit překlad', 'See translation', 'Skrýt odpovědi', 'Hide replies'];
-                    if (txt && txt !== author && !ignoreWords.includes(txt) && !txt.includes('To se mi líbí') && !txt.includes(' like')) {
-                        if (!textContent.includes(txt)) {
+                    
+                    var isTimeStr = /^\\d+\\s*[hdwmsčty]$/i.test(txt) || /^před\\s+\\d+/i.test(txt);
+                    // Nový filtr pro skrytí textů "Zobrazit odpovědi"
+                    var isReplyStr = /zobrazit\\s+všech/i.test(txt) || /view\\s+all/i.test(txt) || /odpovědí/i.test(txt) || /replies/i.test(txt);
+                    
+                    if (txt && txt !== author && !ignoreWords.includes(txt) && !txt.includes('To se mi líbí') && !txt.includes(' like') && !isTimeStr && !isReplyStr) {
+                        // Zabráníme čtení textu z obrovských rodičovských divů
+                        if (author && txt.includes(author) && txt.length > author.length + 5) continue;
+                        
+                        if (!textContent.includes(txt) && txt.length > 1) {
                             textContent += txt + " ";
                         }
                     }
@@ -298,9 +419,13 @@ class InstagramScraper:
                 var allTextEls = block.querySelectorAll('span, div');
                 for (var k = 0; k < allTextEls.length; k++) {
                     var txt = allTextEls[k].innerText.trim();
-                    if ((txt.includes('To se mi líbí') || txt.includes(' like')) && /\\d/.test(txt)) {
-                        likesStr = txt;
-                        break;
+                    if ((txt.includes('To se mi líbí') || txt.includes(' like') || txt.includes('Likes') || txt.includes('likes')) && /\\d/.test(txt)) {
+                        // KLÍČOVÁ OCHRANA: List lajků má pár znaků, rodičovský div s celým komentářem jich má spoustu.
+                        // Omezíme to na 40 znaků, takže se uloží jen konkrétní element "33 To se mi líbí".
+                        if (txt.length < 40) {
+                            likesStr = txt;
+                            break;
+                        }
                     }
                 }
                 
@@ -313,44 +438,45 @@ class InstagramScraper:
             }
             return results;
         }
-        return extract();
         """
 
         js_scroll_comments = """
-        var times = document.querySelectorAll('time');
-        if (times.length > 1) {
-            var el = times[times.length - 1]; 
-            for (var i = 0; i < 15; i++) {
-                if (!el.parentElement || el.tagName === 'BODY' || el.tagName === 'HTML') break;
-                el = el.parentElement;
-                var style = window.getComputedStyle(el);
-                if (style.overflowY === 'auto' || style.overflowY === 'scroll' || style.overflowY === 'hidden') {
-                    if (el.scrollHeight > el.clientHeight + 10) {
-                        el.scrollTop = el.scrollHeight;
-                        return true;
+        () => {
+            var times = document.querySelectorAll('time');
+            if (times.length > 1) {
+                var el = times[times.length - 1]; 
+                for (var i = 0; i < 15; i++) {
+                    if (!el.parentElement || el.tagName === 'BODY' || el.tagName === 'HTML') break;
+                    el = el.parentElement;
+                    var style = window.getComputedStyle(el);
+                    if (style.overflowY === 'auto' || style.overflowY === 'scroll' || style.overflowY === 'hidden') {
+                        if (el.scrollHeight > el.clientHeight + 10) {
+                            el.scrollTop = el.scrollHeight;
+                            return true;
+                        }
                     }
                 }
             }
-        }
-        var divs = document.querySelectorAll('div, ul');
-        for (var i=0; i<divs.length; i++) {
-            var style = window.getComputedStyle(divs[i]);
-            if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && divs[i].scrollHeight > divs[i].clientHeight) {
-                divs[i].scrollTop = divs[i].scrollHeight;
+            var divs = document.querySelectorAll('div, ul');
+            for (var i=0; i<divs.length; i++) {
+                var style = window.getComputedStyle(divs[i]);
+                if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && divs[i].scrollHeight > divs[i].clientHeight) {
+                    divs[i].scrollTop = divs[i].scrollHeight;
+                }
             }
+            return false;
         }
-        return false;
         """
 
         for scroll_attempt in range(12):
             try:
-                load_more = self.bot.page.ele('css:svg[aria-label="Načíst další komentáře"], css:svg[aria-label="Load more comments"]', timeout=0.5)
-                if load_more:
-                    load_more.parent().click(by_js=True)
+                load_more = self.bot.page.locator('svg[aria-label="Načíst další komentáře"], svg[aria-label="Load more comments"]').first
+                if load_more.is_visible(timeout=500):
+                    load_more.locator('xpath=./ancestor::button | ./ancestor::div[@role="button"]').first.click(force=True)
                     delay(1.5, 2.5)
             except: pass
 
-            extracted_data = self.bot.page.run_js(js_extract_comments)
+            extracted_data = self.bot.page.evaluate(js_extract_comments)
             
             if extracted_data:
                 for data in extracted_data:
@@ -389,62 +515,57 @@ class InstagramScraper:
 
             if comments_collected >= max_comments: break
             try:
-                self.bot.page.run_js(js_scroll_comments)
+                self.bot.page.evaluate(js_scroll_comments)
             except: pass
             delay(1.5, 2.5)
 
-    def scrape_profile(self, target_query, limit=10):
-        """
-        Hlavní metoda pro těžbu profilu.
-        limit: int -> Počet příspěvků ke stažení. Pokud -1, stahuje vše.
-        """
+    def scrape_profile(self, target_query, limit=10, comments_limit=50, followers_limit=50, following_limit=50):
         limit_text = "NEOMEZENO" if limit == -1 else str(limit)
-        print(f"[IG-SCRAPER] Zahajuji simulaci lidského vyhledávání: '{target_query}' (Limit: {limit_text})")
+        print(f"[IG-SCRAPER] Zahajuji simulaci lidského vyhledávání: '{target_query}' (Limit: {limit_text} P / {comments_limit} K / {followers_limit} S / {following_limit} S)")
 
         if "instagram.com" not in self.bot.page.url:
             self.bot.open_url(self.bot.base_url)
             delay(2, 4)
 
-        # 1. VYHLEDÁVÁNÍ (Simulace)
-        search_icon = self.bot.page.ele('css:svg[aria-label="Hledat"]', timeout=2)
-        if not search_icon:
-            search_icon = self.bot.page.ele('css:svg[aria-label="Search"]', timeout=2)
+        search_icon = self.bot.page.locator('svg[aria-label="Hledat"]').first
+        if search_icon.count() == 0:
+            search_icon = self.bot.page.locator('svg[aria-label="Search"]').first
 
-        if search_icon:
+        if search_icon.count() > 0:
             print("[IG-SCRAPER] Klikám na záložku Hledání (Lupa)...")
-            parent_link = search_icon.parent('tag:a')
-            if parent_link:
-                parent_link.click(by_js=True)
-            else:
-                search_icon.click(by_js=True)
+            try:
+                search_icon.locator('xpath=./ancestor::a').first.click(force=True)
+            except:
+                search_icon.click(force=True)
             delay(2, 4)
 
-            search_box = self.bot.page.ele('tag:input', timeout=3)
+            search_box = self.bot.page.locator('input').first
             
-            if search_box:
+            if search_box.count() > 0:
                 print("[IG-SCRAPER] Vyhledávací pole nalezeno, simuluji psaní...")
                 search_box.click()
                 delay(0.5, 1.5)
                 
-                human_typing(search_box, target_query)
+                search_box.fill("")
+                search_box.press_sequentially(target_query, delay=150)
                 print("[IG-SCRAPER] Dopsáno, čekám na dynamické výsledky...")
                 delay(4, 6)
                 
                 found_profile = False
                 ignore_list = ['explore', 'reels', 'direct', 'stories', 'tags', 'locations', 'p', 'your_activity', 'saved', 'settings', 'accounts', 'language']
                 
-                current_links = self.bot.page.eles('tag:a', timeout=3)
+                current_links = self.bot.page.locator('a').all()
                 for link in current_links:
-                    if link.states.is_displayed:
-                        href = link.attr('href')
+                    if link.is_visible():
+                        href = link.get_attribute('href')
                         if href and (href.startswith('https://www.instagram.com/') or href.startswith('/')):
                             path = href.replace('https://www.instagram.com', '').split('?')[0].strip('/')
                             
                             if path and '/' not in path:
                                 if path not in ignore_list and path != self.bot.username:
-                                    if link.text.strip():
+                                    if link.inner_text().strip():
                                         print(f"[IG-SCRAPER] Nalezen profil (/{path}/), přecházím na něj.")
-                                        link.click(by_js=True)
+                                        link.click(force=True)
                                         found_profile = True
                                         delay(4, 6)
                                         break 
@@ -460,7 +581,6 @@ class InstagramScraper:
             self.bot.open_url(f"{self.bot.base_url}{target_query.replace('@', '').replace(' ', '')}/")
             delay(4, 6)
 
-        # 2. ULOŽENÍ UŽIVATELE
         current_url = self.bot.page.url
         try:
             actual_username = current_url.split('instagram.com/')[-1].split('/')[0].split('?')[0]
@@ -469,42 +589,141 @@ class InstagramScraper:
 
         print("[IG-SCRAPER] Stahuji data o uživateli...")
         
-        followers_ele = self.bot.page.ele('xpath://a[contains(@href, "/followers")]//span', timeout=3)
-        followers_text = followers_ele.attr('title') if (followers_ele and followers_ele.attr('title')) else (followers_ele.text if followers_ele else "0")
-        followers_count = self.parse_number(followers_text)
-
-        bio_ele = self.bot.page.ele('xpath://h1[@dir="auto"]', timeout=2)
-        bio = bio_ele.text if bio_ele else ""
+        # Komplexní extrakce profilu přes Javascript s lepším filtrováním
+        profile_js = """
+        () => {
+            let header = document.querySelector('header');
+            if (!header) return {};
+            
+            let data = {
+                followers: "0",
+                following: "0",
+                bio: "",
+                display_name: "",
+                website: "",
+                profile_pic_url: "",
+                is_verified: 0,
+                texts: []
+            };
+            
+            // Followers
+            let flw_link = header.querySelector('a[href*="/followers/"]');
+            if (flw_link) {
+                let span = flw_link.querySelector('span[title]');
+                if (span) data.followers = span.getAttribute('title');
+                else data.followers = flw_link.innerText;
+            }
+            
+            // Following
+            let flg_link = header.querySelector('a[href*="/following/"]');
+            if (flg_link) {
+                let span = flg_link.querySelector('span:not([dir])');
+                if (span) data.following = span.innerText;
+                else data.following = flg_link.innerText;
+            }
+            
+            // Verifikace
+            if (header.querySelector('svg[aria-label="Ověřeno"], svg[aria-label="Verified"]')) {
+                data.is_verified = 1;
+            }
+            
+            // Web
+            let web_link = header.querySelector('a[target="_blank"]');
+            if (web_link) {
+                data.website = web_link.innerText.trim();
+            }
+            
+            // Profilovka
+            let img = header.querySelector('img');
+            if (img) data.profile_pic_url = img.getAttribute('src');
+            
+            // Extrakce všech textových elementů pro jméno a bio
+            let dirEls = Array.from(header.querySelectorAll('span[dir="auto"], h1[dir="auto"], h2[dir="auto"], div[dir="auto"]'));
+            
+            for(let el of dirEls) {
+                let t = el.innerText.trim();
+                if(!t) continue;
+                
+                let tLow = t.toLowerCase();
+                
+                // Opravené a přísnější filtrování tlačítek a statistik (zachytí i "Sleduji (47)")
+                let isStat = tLow.includes('příspěvky') || tLow.includes('sledující') || tLow.includes('sleduji') ||
+                             tLow.includes('posts') || tLow.includes('followers') || tLow.includes('following');
+                
+                let isBtn = ['sledovat', 'zpráva', 'follow', 'message', 'přidat do příběhu', 'add to story'].includes(tLow);
+                
+                if (isStat || isBtn) continue;
+                
+                if (!data.texts.includes(t)) {
+                    data.texts.push(t);
+                }
+            }
+            
+            return data;
+        }
+        """
         
-        display_name_ele = self.bot.page.ele('xpath://span[@dir="auto" and contains(@class, "x1")]', timeout=2)
-        display_name = display_name_ele.text if display_name_ele else actual_username
+        try:
+            profile_data = self.bot.page.evaluate(profile_js)
+            
+            followers_count = self.parse_number(profile_data.get('followers', '0'))
+            following_count = self.parse_number(profile_data.get('following', '0'))
+            
+            display_name = actual_username
+            bio = ""
+            website = profile_data.get('website', None)
+            
+            # Očištění posbíraných textů a jejich přiřazení
+            texts = profile_data.get('texts', [])
+            clean_texts = []
+            for t in texts:
+                if t.lower() == actual_username.lower(): continue # Vynecháme username
+                if website and t == website: continue             # Vynecháme web
+                if re.match(r'^[\d\s,]+(?:mil\.|tis\.|m|k)?$', t.lower().replace('\xa0', ' ')): continue # Zbloudilá čísla
+                clean_texts.append(t)
+                
+            # Pokud zbyly texty: první je obvykle jméno (display name), druhý a další je bio
+            if len(clean_texts) > 0:
+                display_name = clean_texts[0]
+                if len(clean_texts) > 1:
+                    bio = "\n".join(clean_texts[1:])
+            
+            is_verified = profile_data.get('is_verified', 0)
+            profile_pic_url = profile_data.get('profile_pic_url', None)
 
+        except Exception as e:
+            print(f"[ERROR] Selhala extrakce metadat profilu: {e}")
+            followers_count, following_count, is_verified = 0, 0, 0
+            display_name = actual_username
+            bio, website, profile_pic_url = "", None, None
+
+        # Uložení rozšířených dat do DB
         user_id = self.db.upsert_user(
             platform="IG",
             username=actual_username,
             display_name=display_name,
             bio=bio,
-            followers_count=followers_count
+            followers_count=followers_count,
+            following_count=following_count,
+            website=website,
+            is_verified=is_verified,
+            profile_pic_url=profile_pic_url
         )
         print(f"[IG-SCRAPER] Profil uložen do DB (Sledujících: {followers_count}). Interní ID: {user_id}")
 
-        # 3. SBĚR URL PŘÍSPĚVKŮ (RESPEKTUJE LIMIT)
         print("[IG-SCRAPER] Skenuji zeď a sbírám URL příspěvků...")
         
         urls_to_scrape = []
         scroll_attempts_without_new = 0
-        
-        # Pojistka proti nekonečné smyčce, pokud limit je -1
         max_scroll_loops = 500 if limit == -1 else 100 
         
         loop_counter = 0
         while True:
-            # a) Sbírání
-            all_links = self.bot.page.eles('tag:a', timeout=2)
+            all_links = self.bot.page.locator('a').all()
             new_found = False
             
             for link in all_links:
-                href = link.attr('href')
+                href = link.get_attribute('href')
                 if href and ('/p/' in href or '/reel/' in href):
                     clean_href = href.split('?')[0]
                     full_url = f"https://www.instagram.com{clean_href}" if clean_href.startswith('/') else clean_href
@@ -513,18 +732,15 @@ class InstagramScraper:
                         urls_to_scrape.append(full_url)
                         new_found = True
                         
-                        # Kontrola limitu okamžitě po přidání
                         if limit != -1 and len(urls_to_scrape) >= limit:
                             break
             
             print(f"  -> Nalezeno {len(urls_to_scrape)} unikátních příspěvků...")
 
-            # b) Podmínka ukončení (Limit)
             if limit != -1 and len(urls_to_scrape) >= limit:
                 print(f"[IG-SCRAPER] Dosažen požadovaný limit {limit}.")
                 break
             
-            # c) Podmínka ukončení (Konec stránky)
             if not new_found:
                 scroll_attempts_without_new += 1
                 if scroll_attempts_without_new >= 4:
@@ -533,32 +749,131 @@ class InstagramScraper:
             else:
                 scroll_attempts_without_new = 0
 
-            # d) Bezpečnostní pojistka
             loop_counter += 1
             if limit == -1 and loop_counter > max_scroll_loops:
                 print("[WARNING] Dosažen interní bezpečnostní limit scrollu.")
                 break
 
-            # e) Scroll
-            self.bot.page.scroll.down(800)
+            self.bot.page.evaluate("window.scrollBy(0, 800)")
             delay(1.5, 3.0)
 
-        # 4. ITERACE A TĚŽBA DETAILŮ
         final_urls = urls_to_scrape[:limit] if limit != -1 else urls_to_scrape
         
         if not final_urls:
             print("[IG-SCRAPER] Nebyly nalezeny žádné příspěvky (profil je soukromý nebo prázdný).")
             return
+            
+        if followers_limit > 0:
+            self._scrape_network(actual_username, followers_limit, "followers")
+        if following_limit > 0:
+            self._scrape_network(actual_username, following_limit, "following")
 
         print(f"\n[IG-SCRAPER] Zahajuji hloubkovou těžbu {len(final_urls)} příspěvků...")
         for i, url in enumerate(final_urls):
             print(f"--- Zpracovávám {i+1} z {len(final_urls)} ---")
             try:
-                self.scrape_post_and_comments(user_id, url)
+                self.scrape_post_and_comments(user_id, url, comments_limit)
             except Exception as e:
                 print(f"[IG-SCRAPER] Chyba při těžbě příspěvku {url}: {e}")
 
         print("\n[IG-SCRAPER] Kompletní těžba cílového IG profilu a komentářů byla úspěšně dokončena.")
+
+    def _scrape_network(self, username, limit, mode):
+        if limit <= 0: return
+        
+        conn_type = "follower" if mode == "followers" else "following"
+        type_cs = "Sledujících" if mode == "followers" else "Sledovaných"
+        print(f"\n[IG-NETWORK] --- Těžba {type_cs} pro @{username} (Limit: {limit}) ---")
+        
+        try:
+            if f"/{username}/" not in self.bot.page.url:
+                self.bot.open_url(f"{self.bot.base_url}{username}/")
+                delay(2, 4)
+
+            link = self.bot.page.locator(f'header a[href*="/{mode}/"]').first
+            if link.is_visible(timeout=5000):
+                link.click()
+            else:
+                print(f"[IG-NETWORK] Tlačítko {type_cs} nebylo nalezeno.")
+                return
+
+            dialog = self.bot.page.locator('div[role="dialog"]').first
+            dialog.wait_for(state="visible", timeout=8000)
+            delay(2, 4)
+
+        except Exception as e:
+            print(f"[IG-NETWORK] Nelze otevřít seznam {type_cs}: {e}")
+            return
+
+        collected = 0
+        processed = set()
+        scroll_attempts = 0
+
+        # JS injekce zaměřená čistě na izolované posouvání uvnitř Modalu
+        js_extract = """
+        () => {
+            let dialog = document.querySelector('div[role="dialog"]');
+            if (!dialog) return {users: [], scrolled: false};
+
+            let users = [];
+            let links = dialog.querySelectorAll('a[href]');
+            for (let a of links) {
+                let href = a.getAttribute('href');
+                if (href && href.startsWith('/') && href.split('/').length === 3) {
+                    let un = href.replace(/\\//g, '');
+                    if (un && !['explore', 'reels', 'direct', 'stories'].includes(un)) {
+                        users.push(un);
+                    }
+                }
+            }
+
+            let scrolled = false;
+            let divs = dialog.querySelectorAll('div');
+            for (let d of divs) {
+                let style = window.getComputedStyle(d);
+                if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+                    if (d.scrollHeight > d.clientHeight + 10) {
+                        d.scrollTop += 600; 
+                        scrolled = true;
+                        break;
+                    }
+                }
+            }
+            return {users: [...new Set(users)], scrolled: scrolled};
+        }
+        """
+
+        while collected < limit and scroll_attempts < 10:
+            try:
+                data = self.bot.page.evaluate(js_extract)
+                new_found = False
+
+                for target_user in data.get('users', []):
+                    if target_user == username: continue
+                    if collected >= limit: break
+
+                    if target_user not in processed:
+                        processed.add(target_user)
+                        new_found = True
+                        self.db.upsert_connection("IG", username, target_user, conn_type)
+                        collected += 1
+                        print(f"  -> Uložen záznam ({conn_type}): @{target_user} ({collected}/{limit})")
+
+                if not new_found: scroll_attempts += 1
+                else: scroll_attempts = 0
+
+                delay(1.5, 3.0)
+            except Exception as e:
+                print(f"[IG-NETWORK] Chyba při těžbě modal okna: {e}")
+                break
+
+        print(f"[IG-NETWORK] Těžba {type_cs} dokončena.")
+        
+        try:
+            close_btn = self.bot.page.locator('div[role="dialog"] button, css:svg[aria-label="Zavřít"], css:svg[aria-label="Close"]').first
+            if close_btn.is_visible(timeout=1000): close_btn.click(force=True)
+            delay(1)
+        except: pass
 ```
 
 ## Soubor: social_bot\src\bots\instagram\__init__.py
@@ -578,40 +893,63 @@ class XAuthenticator:
     def login(self):
         print("[X] Kontroluji session na hlavní stránce...")
         
-        self.bot.page.get(self.base_url)
+        # Playwright využívá metodu goto s nastavením chování při načítání
+        try:
+            self.bot.page.goto(self.base_url, wait_until="domcontentloaded", timeout=30000)
+        except Exception as e:
+            print(f"[X] Varování při načítání úvodní stránky: {e}")
+            
         delay(4, 6) 
 
         is_logged_in = False
-        if self.bot.page.ele('@aria-label:Timeline: Your Home Timeline', timeout=5):
-            is_logged_in = True
-        elif self.bot.page.ele('@aria-label:Profile', timeout=2):
-             is_logged_in = True
-        elif "/home" in self.bot.page.url:
-             is_logged_in = True
+        
+        try:
+            # Selektory přepsány do standardního formátu pro Playwright
+            if self.bot.page.locator('[aria-label="Timeline: Your Home Timeline"]').is_visible(timeout=5000):
+                is_logged_in = True
+            elif self.bot.page.locator('[aria-label="Profile"]').is_visible(timeout=2000):
+                 is_logged_in = True
+            elif "/home" in self.bot.page.url:
+                 is_logged_in = True
+        except:
+            pass
 
         if is_logged_in:
             print("[X] Úspěšně ověřeno: Již přihlášeno (ze session).")
             return
         
         print("[X] Session nenalezena, jdu se přihlásit...")
-        self.bot.page.get(self.base_url + "i/flow/login")
+        try:
+            self.bot.page.goto(self.base_url + "i/flow/login", wait_until="domcontentloaded", timeout=30000)
+        except:
+            pass
         delay(3)
         
-        if self.bot.page.ele('@autocomplete=username', timeout=10):
+        username_input = self.bot.page.locator('[autocomplete="username"]').first
+        try:
+            # Playwright vyžaduje explicitní čekání na stav elementu, pokud nevyužíváme auto-waiting akce
+            username_input.wait_for(state="visible", timeout=10000)
             print("[X] Zadávám uživatelské jméno...")
-            self.bot.page.ele('@autocomplete=username').input(self.bot.username)
+            
+            # press_sequentially nahrazuje původní iterativní human_typing
+            username_input.press_sequentially(self.bot.username, delay=150)
             delay(1, 2)
             
-            next_xpath = "xpath://span[text()='Next' or text()='Další']"
+            next_xpath = "//span[text()='Next' or text()='Další']"
             self.bot.click_smart(next_xpath, "Tlačítko Další")
             delay(2, 3)
+        except Exception as e:
+            print(f"[X] Pole pro username nebylo včas nalezeno: {e}")
 
-        if self.bot.page.ele('@name=password', timeout=10):
+        password_input = self.bot.page.locator('[name="password"]').first
+        try:
+            password_input.wait_for(state="visible", timeout=10000)
             print("[X] Zadávám heslo...")
-            self.bot.page.ele('@name=password').input(self.bot.password)
+            
+            password_input.press_sequentially(self.bot.password, delay=150)
             delay(1, 2)
             
-            login_xpath = "xpath://span[text()='Log in' or text()='Přihlásit se']"
+            login_xpath = "//span[text()='Log in' or text()='Přihlásit se']"
             self.bot.click_smart(login_xpath, "Tlačítko Login")
             delay(5, 8)
             
@@ -619,6 +957,8 @@ class XAuthenticator:
             
             print("[X] Přihlášení dokončeno, ukládám session...")
             delay(3)
+        except Exception as e:
+            print(f"[X] Pole pro heslo nebylo včas nalezeno: {e}")
 ```
 
 ## Soubor: social_bot\src\bots\x\bot.py
@@ -632,8 +972,6 @@ class XBot(BaseBot):
         super().__init__(user_id=user_id, platform="x")
         self.username = username
         self.password = password
-        
-        # CHYBĚJÍCÍ PROMĚNNÁ DOPLNĚNA
         self.base_url = "https://x.com/" 
         
         self.auth = XAuthenticator(self)
@@ -650,28 +988,30 @@ from .modules.search import XSearchModule
 from .modules.profile import XProfileModule
 from .modules.posts import XPostsModule
 from .modules.comments import XCommentsModule
+from .modules.network import XNetworkModule
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 class XScraper:
     def __init__(self, bot):
         self.bot = bot
         self.db = DatabaseManager()
         
-        # Inicializace modulů
         self.search_module = XSearchModule(bot, self.db)
         self.profile_module = XProfileModule(bot, self.db)
         self.posts_module = XPostsModule(bot, self.db)
         self.comments_module = XCommentsModule(bot, self.db)
+        self.network_module = XNetworkModule(bot, self.db)
 
-    def scrape_profile(self, target_query, limit=10):
+    def scrape_profile(self, target_query, limit=10, comments_limit=50, followers_limit=50, following_limit=50):
         limit_text = "NEOMEZENO" if limit == -1 else str(limit)
-        print(f"[X-SCRAPER] Cíl: '{target_query}' (Limit: {limit_text})")
         
-        # 1. Najít profil (Navigace)
+        # Drobná úprava printu, aby ukazoval i limit sledujících
+        print(f"[X-SCRAPER] Cíl: '{target_query}' (Limit: {limit_text} P / {comments_limit} K / {followers_limit} S)")
+        
         if not self.search_module.find_profile(target_query):
             print(f"[ERROR] Profil '{target_query}' nebyl nalezen ani přes Google.")
             return
 
-        # Zjistit aktuální username z URL
         try:
             current_url = self.bot.page.url
             if "x.com/" in current_url:
@@ -681,43 +1021,59 @@ class XScraper:
         except:
             actual_username = target_query.replace('@', '').replace(' ', '')
 
-        # 2. Vytěžit metadata profilu
         user_id = self.profile_module.scrape_metadata(actual_username)
 
-        # 3. Vytěžit příspěvky (Timeline)
-        # Získáváme dvě fronty: jednu pro videa, druhou pro komentáře (všechny posty)
         videos_queue, comments_queue = self.posts_module.scrape_timeline(user_id, limit)
 
-        # 4. Fáze 2: Video Sniffing (Volitelné/Experimentální)
-        # Pokud nefunguje ideálně, nevadí, pouze se pokusí vylepšit data
         if videos_queue:
             self.posts_module.process_videos(videos_queue)
 
-        # 5. Fáze 3: Komentáře
-        # Spustíme těžbu komentářů pro všechny stažené příspěvky
         if comments_queue:
-            self.comments_module.scrape_for_queue(comments_queue, limit=20)
+            self.comments_module.scrape_for_queue(comments_queue, limit=comments_limit)
         else:
             print("[X-SCRAPER] Žádné příspěvky ke zpracování komentářů.")
+            
+        if followers_limit > 0:
+            self.network_module.scrape_followers(actual_username, limit=followers_limit)
+            
+        if following_limit > 0:
+            self.network_module.scrape_following(actual_username, limit=following_limit)
 
         print("\n[X-SCRAPER] Hotovo.")
 
     def scrape_trending(self):
         print("[X-SCRAPER] Těžba trendů...")
-        self.bot.page.get("https://x.com/explore/tabs/trending")
-        if not self.bot.page.ele('@data-testid=trend', timeout=6):
+        try:
+            self.bot.page.goto("https://x.com/explore/tabs/trending", wait_until="domcontentloaded", timeout=30000)
+        except PlaywrightTimeoutError:
+            print("[X-SCRAPER] Varování: Timeout při načítání stránky trendů.")
+
+        trends_locator = self.bot.page.locator('[data-testid="trend"]')
+        
+        try:
+            trends_locator.first.wait_for(state="visible", timeout=6000)
+        except PlaywrightTimeoutError:
             print("[X-SCRAPER] Trendy se nenačetly.")
             return
-        trends = self.bot.page.eles('@data-testid=trend', timeout=4)
+            
+        trends = trends_locator.all()
         print(f"[X-SCRAPER] Nalezeno {len(trends)} trendů.")
+        
         for index, trend in enumerate(trends):
             try:
-                text = trend.text.split('\n')
+                # Playwright používá inner_text() pro zachování formátování s novými řádky
+                text_content = trend.inner_text()
+                if not text_content:
+                    continue
+                    
+                text = text_content.split('\n')
                 topic = text[1] if len(text) > 1 else text[0]
                 count = text[-1] if "posts" in text[-1] else "N/A"
+                
                 self.db.upsert_trend("X", index+1, "General", topic, count)
                 print(f"  -> #{index+1} {topic}")
-            except: pass
+            except Exception:
+                pass
 ```
 
 ## Soubor: social_bot\src\bots\x\__init__.py
@@ -729,6 +1085,9 @@ from .bot import XBot
 ```py
 from src.utils.human_input import delay
 from .utils import XUtils
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+import time
+import re
 
 class XCommentsModule:
     def __init__(self, bot, db):
@@ -741,65 +1100,243 @@ class XCommentsModule:
         count = len(queue)
         print(f"\n[X-COMMENTS] --- Těžba komentářů ({count} příspěvků) ---")
         
+        # Nová fronta čistě pro videa v komentářích
+        comment_videos_queue = []
+        
         for i, post_data in enumerate(queue):
             print(f"[X-COMMENTS] Komentáře pro {post_data['platform_id']} ({i+1}/{count})...")
             try:
-                self._scrape_single_post(post_data['db_id'], post_data['platform_id'], post_data['url'], limit)
+                self._scrape_single_post(
+                    post_data['db_id'], 
+                    post_data['platform_id'], 
+                    post_data['url'], 
+                    limit,
+                    comment_videos_queue
+                )
             except Exception as e:
                 print(f"[ERROR] Chyba u komentářů: {e}")
 
-    def _scrape_single_post(self, db_post_id, platform_post_id, post_url, max_comments):
-        try:
-            self.bot.page.get(post_url)
-            if not self.bot.page.ele('@data-testid=tweetText', timeout=4): return
-        except: return
+        # Pokud jsme narazili na video v komentářích, vyvoláme Fázi 4
+        if comment_videos_queue:
+            self._process_comment_videos(comment_videos_queue)
 
-        delay(0.5, 1.0)
+    def _scrape_single_post(self, db_post_id, platform_post_id, post_url, max_comments, video_queue):
+        try:
+            self.bot.page.goto(post_url, wait_until="domcontentloaded", timeout=20000)
+            
+            main_article = self.bot.page.locator('article').first
+            main_article.wait_for(state="visible", timeout=10000)
+            
+            self.bot.page.wait_for_timeout(2000)
+        except PlaywrightTimeoutError:
+            print(f"  -> [WARNING] Timeout při načítání příspěvku {platform_post_id}.")
+            return
+        except Exception as e:
+            print(f"  -> [ERROR] Nelze načíst příspěvek {platform_post_id}: {e}")
+            return
+
         comments_collected = 0
         processed_ids = set()
         
-        for _ in range(6): 
+        for attempt in range(6): 
             if comments_collected >= max_comments: break
-            articles = self.bot.page.eles('tag:article', timeout=0.5)
+            
+            articles = self.bot.page.locator('article').all()
             
             for article in articles:
                 if comments_collected >= max_comments: break
                 try:
-                    time_ele = article.ele('tag:time', timeout=0.05)
-                    if not time_ele: continue
+                    time_ele = article.locator('time').first
+                    if time_ele.count() == 0: continue
                     
-                    raw_href = time_ele.parent('tag:a').attr('href')
+                    link_ele = article.locator('a:has(time)').first
+                    raw_href = link_ele.get_attribute('href')
                     if not raw_href: continue
                     
                     cid = raw_href.split('/')[-1]
-                    if not cid or cid == platform_post_id or cid in processed_ids: continue
+                    
+                    if not cid or cid == platform_post_id or cid in processed_ids: 
+                        continue
+                        
                     processed_ids.add(cid)
 
-                    # Autor
-                    user_name_ele = article.ele('@data-testid=User-Name', timeout=0.05)
-                    author_user = user_name_ele.text.split('\n')[1].replace('@', '') if user_name_ele else ""
+                    user_name_ele = article.locator('[data-testid="User-Name"]').first
+                    author_user = user_name_ele.inner_text().split('\n')[1].replace('@', '') if user_name_ele.count() > 0 else ""
                     
-                    # Text
-                    text_ele = article.ele('@data-testid=tweetText', timeout=0.05)
-                    text_content = text_ele.text if text_ele else ""
-                    text_content, media_url, _ = XUtils.extract_media(article, text_content)
+                    text_ele = article.locator('[data-testid="tweetText"]').first
+                    text_content = text_ele.inner_text() if text_ele.count() > 0 else ""
+                    
+                    # Nyní už nevyhazujeme boolean pro is_video, ale zachytáváme ho
+                    text_content, media_url, is_video = XUtils.extract_media(article, text_content)
 
-                    self.db.upsert_comment(
+                    # Uložíme komentář s aktuálním náhledem a získáme jeho vnitřní UUID z naší DB
+                    comment_db_id = self.db.upsert_comment(
                         post_id=db_post_id,
                         platform="X",
                         platform_comment_id=cid,
                         author_username=author_user,
                         author_display_name="",
                         text_content=text_content,
-                        timestamp_posted=time_ele.attr('datetime'),
+                        timestamp_posted=time_ele.get_attribute('datetime'),
                         likes_count=0, shares_count=0, replies_count=0,
                         media_url=media_url
                     )
                     comments_collected += 1
-                except: continue
+                    print(f"  -> Uložen komentář: {cid} | Video: {is_video}")
 
-            self.bot.page.scroll.down(700)
-            delay(0.5, 0.8)
+                    # Pokud je to video, pošleme ho s UUID a URL na "operaci Fáze 4"
+                    if is_video:
+                        comment_url = f"https://x.com/{author_user}/status/{cid}"
+                        video_queue.append({
+                            'db_id': comment_db_id,
+                            'url': comment_url,
+                            'platform_id': cid
+                        })
+                        
+                except Exception: 
+                    continue
+
+            self.bot.page.evaluate("window.scrollBy(0, 800)")
+            delay(2.0, 3.5)
+
+    def _process_comment_videos(self, video_queue):
+        """Dodatečná Fáze 4 - stahuje MP4 pro komentáře."""
+        count = len(video_queue)
+        print(f"\n[X-COMMENTS-VIDEO] --- FÁZE 4: Těžba MP4 z komentářů ({count} položek) ---")
+        
+        for i, item in enumerate(video_queue):
+            print(f"[X-COMMENTS-VIDEO] Zpracovávám komentář {i+1}/{count} (ID: {item['platform_id']})...")
+            try:
+                stream_url = self._get_video_stream(item['url'])
+                
+                if stream_url:
+                    # Rozdíl oproti příspěvkům: updatujeme tabulku 'comments'
+                    self.db.cursor.execute("UPDATE comments SET media_url = ? WHERE id = ?", (stream_url, item['db_id']))
+                    self.db.conn.commit()
+                    print(f"  -> [DB] Video aktualizováno pro komentář.")
+                else:
+                    print(f"  -> [WARNING] Stream nenalezen.")
+                    
+                delay(2, 4)
+            except Exception as e:
+                print(f"  -> [ERROR] {e}")
+
+    def _get_video_stream(self, post_url):
+        """Identický sniffer jako v posts.py."""
+        video_url = None
+        
+        def handle_response(response):
+            nonlocal video_url
+            try:
+                if "graphql" in response.url:
+                    text_body = response.text().replace('\\/', '/')
+                    links = re.findall(r'(https://video\.twimg\.com/[^"\'\s]+\.(?:mp4|m3u8))', text_body)
+                    if links:
+                        mp4s = [l for l in links if l.endswith('.mp4')]
+                        video_url = mp4s[0] if mp4s else links[0]
+                elif not video_url and "video.twimg.com" in response.url:
+                    if ".mp4" in response.url or ".m3u8" in response.url:
+                        video_url = response.url
+            except:
+                pass
+
+        self.bot.page.on("response", handle_response)
+        
+        try:
+            self.bot.page.goto(post_url, wait_until="domcontentloaded", timeout=15000)
+            
+            video_ele = self.bot.page.locator('[data-testid="videoPlayer"]').first
+            if video_ele.is_visible(timeout=5000):
+                video_ele.click(force=True)
+            
+            start_time = time.time()
+            while time.time() - start_time < 8:
+                if video_url:
+                    print(f"  -> [SNIFFER] ÚSPĚCH! URL zachycena.")
+                    break
+                self.bot.page.wait_for_timeout(500)
+                
+        except Exception as e: 
+            print(f"  -> [SNIFFER ERROR] {e}")
+        finally:
+            self.bot.page.remove_listener("response", handle_response)
+            
+        return video_url
+```
+
+## Soubor: social_bot\src\bots\x\modules\network.py
+```py
+from src.utils.human_input import delay
+import re
+
+class XNetworkModule:
+    def __init__(self, bot, db):
+        self.bot = bot
+        self.db = db
+
+    def scrape_followers(self, username, limit=50):
+        self._scrape_users_list(username, "followers", "follower", limit)
+
+    def scrape_following(self, username, limit=50):
+        self._scrape_users_list(username, "following", "following", limit)
+
+    def _scrape_users_list(self, username, endpoint, conn_type, limit):
+        if limit <= 0: return
+        
+        type_cs = "Sledujících" if conn_type == "follower" else "Sledovaných"
+        print(f"\n[X-NETWORK] --- Těžba {type_cs} pro @{username} (Limit: {limit}) ---")
+        
+        try:
+            self.bot.page.goto(f"https://x.com/{username}/{endpoint}", wait_until="domcontentloaded", timeout=15000)
+            self.bot.page.locator('[data-testid="primaryColumn"]').first.wait_for(state="visible", timeout=10000)
+            delay(2, 4)
+        except Exception as e:
+            print(f"[X-NETWORK] Nelze načíst seznam {type_cs}: {e}")
+            return
+
+        collected = 0
+        processed = set()
+        scroll_attempts = 0
+
+        while collected < limit and scroll_attempts < 15:
+            cells = self.bot.page.locator('[data-testid="UserCell"]').all()
+            new_found = False
+
+            for cell in cells:
+                if collected >= limit: break
+                try:
+                    # Načteme veškerý text z buňky daného uživatele
+                    text_content = cell.inner_text()
+                    
+                    # Robustní hledání handle pomocí regulárního výrazu (hledá slovo začínající na @)
+                    match = re.search(r'@([a-zA-Z0-9_]+)', text_content)
+                    
+                    if match:
+                        target_user = match.group(1).strip()
+                        
+                        # Zabráníme uložení sebe sama a duplikátů
+                        if target_user and target_user.lower() != username.lower() and target_user not in processed:
+                            processed.add(target_user)
+                            new_found = True
+                            
+                            # Uložení do databáze do naší sítě (Connections)
+                            self.db.upsert_connection("X", username, target_user, conn_type)
+                            
+                            collected += 1
+                            print(f"  -> Uložen záznam ({conn_type}): @{target_user} ({collected}/{limit})")
+                except Exception: 
+                    continue
+
+            if not new_found: 
+                scroll_attempts += 1
+            else: 
+                scroll_attempts = 0
+
+            if collected < limit:
+                self.bot.page.evaluate("window.scrollBy(0, 1000)")
+                delay(1.5, 3.0)
+
+        print(f"[X-NETWORK] Těžba {type_cs} dokončena.")
 ```
 
 ## Soubor: social_bot\src\bots\x\modules\posts.py
@@ -814,31 +1351,33 @@ class XPostsModule:
         self.db = db
 
     def scrape_timeline(self, user_id, limit):
-        """
-        Scrapuje příspěvky z timeline. 
-        Vrací: (videos_queue, all_posts_queue)
-        """
         print("[X-POSTS] Sbírám příspěvky...")
         posts_collected = 0
         processed_post_ids = set()
         
-        posts_to_process_video = []   # Fronta pro videa (Fáze 2)
-        posts_for_comments = []       # Fronta pro komentáře (Fáze 3 - Všechny)
+        posts_to_process_video = []
+        posts_for_comments = []
+        
+        scroll_attempts_without_new = 0
         
         while True:
             if limit != -1 and posts_collected >= limit: break
             
-            articles = self.bot.page.eles('tag:article', timeout=2)
+            self.bot.page.wait_for_timeout(1000)
+            articles = self.bot.page.locator('article').all()
             new_in_batch = False
 
             for article in articles:
                 if limit != -1 and posts_collected >= limit: break
                 try:
-                    time_ele = article.ele('tag:time', timeout=0.05)
-                    if not time_ele: continue 
+                    time_ele = article.locator('time').first
+                    if time_ele.count() == 0: continue 
                     
-                    raw_href = time_ele.parent('tag:a').attr('href')
+                    # Nalezení nadřazeného odkazu k tagu time
+                    link_ele = article.locator('a:has(time)').first
+                    raw_href = link_ele.get_attribute('href')
                     if not raw_href: continue
+                    
                     full_url = raw_href if raw_href.startswith("http") else f"https://x.com{raw_href}"
                     platform_post_id = raw_href.split('/')[-1]
                     
@@ -846,35 +1385,35 @@ class XPostsModule:
                     processed_post_ids.add(platform_post_id)
                     new_in_batch = True
                     
-                    # Text & Media
-                    text_ele = article.ele('@data-testid=tweetText', timeout=0.05)
-                    post_text = text_ele.text if text_ele else ""
+                    text_ele = article.locator('[data-testid="tweetText"]').first
+                    post_text = text_ele.inner_text() if text_ele.count() > 0 else ""
                     post_text, media_url, is_video = XUtils.extract_media(article, post_text)
                     
-                    timestamp = time_ele.attr('datetime')
+                    timestamp = time_ele.get_attribute('datetime')
                     
-                    # Stats
                     likes, shares, comments = 0, 0, 0
                     try:
-                        re_el = article.ele('@data-testid=reply', timeout=0.01); comments = XUtils.parse_number(re_el.text) if re_el else 0
-                        rt_el = article.ele('@data-testid=retweet', timeout=0.01); shares = XUtils.parse_number(rt_el.text) if rt_el else 0
-                        li_el = article.ele('@data-testid=like', timeout=0.01); likes = XUtils.parse_number(li_el.text) if li_el else 0
+                        re_el = article.locator('[data-testid="reply"]').first
+                        comments = XUtils.parse_number(re_el.inner_text()) if re_el.count() > 0 else 0
+                        
+                        rt_el = article.locator('[data-testid="retweet"]').first
+                        shares = XUtils.parse_number(rt_el.inner_text()) if rt_el.count() > 0 else 0
+                        
+                        li_el = article.locator('[data-testid="like"]').first
+                        likes = XUtils.parse_number(li_el.inner_text()) if li_el.count() > 0 else 0
                     except: pass
 
-                    # Uložit do DB
                     db_post_id = self.db.upsert_post(user_id, "X", platform_post_id, post_text, timestamp, likes, shares, comments, full_url, media_url)
                     posts_collected += 1
                     
                     print(f"[X-POSTS] ({posts_collected}) Tweet: {platform_post_id} | Video: {is_video}")
                     
-                    # Přidat do seznamu pro komentáře (všechny úspěšně stažené)
                     posts_for_comments.append({
                         'db_id': db_post_id,
                         'platform_id': platform_post_id,
                         'url': full_url
                     })
 
-                    # Pokud je to video, uložíme si pro sniffing (i když nefunguje 100%, logika tu zůstane)
                     if is_video:
                         posts_to_process_video.append({
                             'db_id': db_post_id,
@@ -885,16 +1424,24 @@ class XPostsModule:
                 except Exception: 
                     pass
 
+            # NOVÉ: Logika proti zacyklení
             if not new_in_batch:
-                self.bot.page.scroll.down(400)
+                scroll_attempts_without_new += 1
+                if scroll_attempts_without_new >= 4:
+                    print("[X-POSTS] Dosažen konec profilu nebo účet nemá (další) příspěvky.")
+                    break
+                    
+                self.bot.page.evaluate("window.scrollBy(0, 400)")
                 delay(1)
-            self.bot.page.scroll.down(700)
+            else:
+                scroll_attempts_without_new = 0
+
+            self.bot.page.evaluate("window.scrollBy(0, 700)")
             delay(0.8, 1.5)
             
         return posts_to_process_video, posts_for_comments
 
     def process_videos(self, video_queue):
-        """2. Fáze: Projde seznam videí a získá m3u8 stream."""
         if not video_queue: return
 
         count = len(video_queue)
@@ -918,28 +1465,53 @@ class XPostsModule:
 
     def _get_video_stream(self, post_url):
         print(f"  -> [SNIFFER] Jdu pro video: {post_url}")
+        video_url = None
         
-        self.bot.page.listen.start(targets="video.twimg.com")
-        self.bot.page.get(post_url)
+        def handle_response(response):
+            nonlocal video_url
+            try:
+                # 1. Analýza GraphQL
+                if "graphql" in response.url:
+                    # Klíčová oprava: odstranění escapování lomítek z JSONu
+                    text_body = response.text().replace('\\/', '/')
+                    
+                    # Zachytáváme .mp4 i .m3u8
+                    links = re.findall(r'(https://video\.twimg\.com/[^"\'\s]+\.(?:mp4|m3u8))', text_body)
+                    
+                    if links:
+                        # Prioritizace .mp4 před .m3u8, pokud jsou k dispozici oba formáty
+                        mp4s = [l for l in links if l.endswith('.mp4')]
+                        video_url = mp4s[0] if mp4s else links[0]
+                
+                # 2. Záchranná síť pro přímé requesty přehrávače
+                elif not video_url and "video.twimg.com" in response.url:
+                    if ".mp4" in response.url or ".m3u8" in response.url:
+                        video_url = response.url
+            except:
+                pass
+
+        self.bot.page.on("response", handle_response)
         
         try:
-            # Kliknout na video pro vynucení načtení
-            video_ele = self.bot.page.ele('@data-testid=videoPlayer', timeout=5)
-            if video_ele: video_ele.click(by_js=True)
-        except: pass
-
-        video_url = None
-        start_time = time.time()
-        
-        while time.time() - start_time < 6:
-            for packet in self.bot.page.listen.steps(timeout=0.5):
-                if ".m3u8" in packet.url and "video.twimg.com" in packet.url:
-                    video_url = packet.url
+            self.bot.page.goto(post_url, wait_until="domcontentloaded", timeout=15000)
+            
+            # Vynucené kliknutí na video pro spuštění přehrávání a odeslání requestu
+            video_ele = self.bot.page.locator('[data-testid="videoPlayer"]').first
+            if video_ele.is_visible(timeout=5000):
+                video_ele.click(force=True)
+            
+            start_time = time.time()
+            while time.time() - start_time < 8:
+                if video_url:
                     print(f"  -> [SNIFFER] ÚSPĚCH! URL zachycena.")
                     break
-            if video_url: break
-        
-        self.bot.page.listen.stop()
+                self.bot.page.wait_for_timeout(500)
+                
+        except Exception as e: 
+            print(f"  -> [SNIFFER ERROR] {e}")
+        finally:
+            self.bot.page.remove_listener("response", handle_response)
+            
         return video_url
 ```
 
@@ -954,60 +1526,49 @@ class XProfileModule:
         self.db = db
 
     def scrape_metadata(self, actual_username):
-        """Vytěží bio, followers, location, web, datum registrace atd."""
         print(f"[X-PROFILE] Těžím metadata pro @{actual_username}...")
         
         try:
-            # Display Name + Verifikace
-            display_name_ele = self.bot.page.ele('@data-testid=UserName', timeout=3)
-            if display_name_ele:
-                display_name = display_name_ele.text.split('\n')[0]
-                is_verified = 1 if display_name_ele.ele('tag:svg@aria-label=Verified account', timeout=0.1) else 0
+            display_name_loc = self.bot.page.locator('[data-testid="UserName"]').first
+            if display_name_loc.count() > 0:
+                display_name = display_name_loc.inner_text().split('\n')[0]
+                is_verified = 1 if display_name_loc.locator('svg[aria-label="Verified account"]').count() > 0 else 0
             else:
                 display_name = actual_username
                 is_verified = 0
 
-            # Bio
-            bio_ele = self.bot.page.ele('@data-testid=UserDescription', timeout=2)
-            bio = bio_ele.text if bio_ele else ""
+            bio_loc = self.bot.page.locator('[data-testid="UserDescription"]').first
+            bio = bio_loc.inner_text() if bio_loc.count() > 0 else ""
             
-            # Location
-            loc_ele = self.bot.page.ele('@data-testid=UserLocation', timeout=1)
-            location = loc_ele.text if loc_ele else None
+            loc_ele = self.bot.page.locator('[data-testid="UserLocation"]').first
+            location = loc_ele.inner_text() if loc_ele.count() > 0 else None
 
-            # Website
-            web_ele = self.bot.page.ele('@data-testid=UserUrl', timeout=1)
-            website = web_ele.text if web_ele else None
+            web_ele = self.bot.page.locator('[data-testid="UserUrl"]').first
+            website = web_ele.inner_text() if web_ele.count() > 0 else None
 
-            # Joined Date
-            join_ele = self.bot.page.ele('@data-testid=UserJoinDate', timeout=1)
-            joined_date = join_ele.text if join_ele else None
+            join_ele = self.bot.page.locator('[data-testid="UserJoinDate"]').first
+            joined_date = join_ele.inner_text() if join_ele.count() > 0 else None
 
-            # Followers
-            followers_ele = self.bot.page.ele('xpath://a[contains(@href, "/followers")]/span[1]|//a[contains(@href, "/verified_followers")]/span[1]', timeout=2)
-            followers_count = XUtils.parse_number(followers_ele.text if followers_ele else "0")
+            followers_ele = self.bot.page.locator('xpath=//a[contains(@href, "/followers")]/span[1] | //a[contains(@href, "/verified_followers")]/span[1]').first
+            followers_count = XUtils.parse_number(followers_ele.inner_text() if followers_ele.count() > 0 else "0")
 
-            # Following
-            following_ele = self.bot.page.ele('xpath://a[contains(@href, "/following")]/span[1]', timeout=2)
-            following_count = XUtils.parse_number(following_ele.text if following_ele else "0")
+            following_ele = self.bot.page.locator('xpath=//a[contains(@href, "/following")]/span[1]').first
+            following_count = XUtils.parse_number(following_ele.inner_text() if following_ele.count() > 0 else "0")
 
-            # Banner
             banner_url = None
             try:
-                banner_link = self.bot.page.ele('xpath://a[contains(@href, "/header_photo")]//img', timeout=1)
-                if banner_link: banner_url = banner_link.attr('src')
+                banner_link = self.bot.page.locator('xpath=//a[contains(@href, "/header_photo")]//img').first
+                if banner_link.count() > 0:
+                    banner_url = banner_link.get_attribute('src')
             except: pass
 
-            # Profile Pic (s HD logikou)
             profile_pic_url = self._get_hd_profile_pic()
 
         except Exception as e:
             print(f"[ERROR] Chyba čtení metadat: {e}")
-            # Fallback hodnoty
             display_name = actual_username; bio = ""; followers_count = 0; following_count = 0
             location = None; website = None; joined_date = None; is_verified = 0; banner_url = None; profile_pic_url = None
 
-        # Uložení do DB
         user_id = self.db.upsert_user(
             platform="X", 
             username=actual_username, 
@@ -1028,23 +1589,28 @@ class XProfileModule:
     def _get_hd_profile_pic(self):
         profile_pic_url = None
         try:
-            avatar_img = self.bot.page.ele('css:img[alt="Opens profile photo"]', timeout=1)
-            if not avatar_img: avatar_img = self.bot.page.ele('css:img[alt="Square profile picture and Opens profile photo"]', timeout=1)
-            if not avatar_img: avatar_img = self.bot.page.ele('xpath://div[contains(@data-testid, "UserAvatar-Container")]//img', timeout=1)
+            avatar_img = self.bot.page.locator('img[alt="Opens profile photo"]').first
+            if avatar_img.count() == 0: 
+                avatar_img = self.bot.page.locator('img[alt="Square profile picture and Opens profile photo"]').first
+            if avatar_img.count() == 0: 
+                avatar_img = self.bot.page.locator('xpath=//div[contains(@data-testid, "UserAvatar-Container")]//img').first
             
-            if avatar_img:
-                profile_pic_url = avatar_img.attr('src')
-                # Pokus o HD verzi
+            if avatar_img.count() > 0:
+                profile_pic_url = avatar_img.get_attribute('src')
                 if profile_pic_url and any(x in profile_pic_url for x in ['_bigger', '_mini', '_normal']):
-                    photo_link = self.bot.page.ele('xpath://div[contains(@data-testid, "UserAvatar-Container")]//a[contains(@href, "/photo")]', timeout=2)
-                    if photo_link:
+                    photo_link = self.bot.page.locator('xpath=//div[contains(@data-testid, "UserAvatar-Container")]//a[contains(@href, "/photo")]').first
+                    if photo_link.count() > 0:
                         photo_link.click()
-                        large_img = self.bot.page.ele('xpath://div[@data-testid="swipe-to-dismiss"]//img', timeout=3)
-                        if large_img: profile_pic_url = large_img.attr('src')
+                        large_img = self.bot.page.locator('xpath=//div[@data-testid="swipe-to-dismiss"]//img').first
+                        large_img.wait_for(state="visible", timeout=3000)
+                        if large_img.count() > 0:
+                            profile_pic_url = large_img.get_attribute('src')
                         
-                        close_btn = self.bot.page.ele('css:div[aria-label="Close"]', timeout=1) or self.bot.page.ele('css:div[aria-label="Zavřít"]', timeout=1)
-                        if close_btn: close_btn.click()
-                        else: self.bot.page.back()
+                        close_btn = self.bot.page.locator('div[aria-label="Close"], div[aria-label="Zavřít"]').first
+                        if close_btn.count() > 0: 
+                            close_btn.click()
+                        else: 
+                            self.bot.page.go_back()
                         delay(0.5)
         except: pass
         return profile_pic_url
@@ -1052,7 +1618,8 @@ class XProfileModule:
 
 ## Soubor: social_bot\src\bots\x\modules\search.py
 ```py
-from src.utils.human_input import delay, human_typing
+from src.utils.human_input import delay
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 class XSearchModule:
     def __init__(self, bot, db):
@@ -1060,28 +1627,29 @@ class XSearchModule:
         self.db = db
 
     def find_profile(self, target_query):
-        """Řídí celý proces hledání profilu."""
-        
-        # 1. KROK: KONTROLA DATABÁZE (CACHE)
         print("[X-SEARCH] 1. Krok: Kontrola lokální databáze...")
         known_handle = self.db.get_known_handle(target_query)
         if known_handle:
             print(f"[DATABASE] Nalezen uložený handle: @{known_handle}. Jdu na jistotu.")
             self.bot.open_url(f"{self.bot.base_url}{known_handle}")
             delay(2, 4)
-            if self.bot.page.ele('@data-testid=UserName', timeout=5):
-                return True
+            try:
+                if self.bot.page.locator('[data-testid="UserName"]').first.is_visible(timeout=5000):
+                    return True
+            except:
+                pass
         
-        # 2. KROK: X SEARCH (EXPLORE)
         print("[X-SEARCH] 2. Krok: Interní vyhledávání na X...")
         if self._internal_search(target_query):
             return True
             
-        # 3. KROK: GOOGLE FALLBACK
         print("[X-SEARCH] 3. Krok: Interní hledání selhalo. Volám Google Search...")
         if self._google_search_fallback(target_query):
-            if self.bot.page.wait.ele_displayed('@data-testid=UserName', timeout=8):
+            try:
+                self.bot.page.locator('[data-testid="UserName"]').first.wait_for(state="visible", timeout=8000)
                 return True
+            except:
+                pass
         
         return False
 
@@ -1090,26 +1658,34 @@ class XSearchModule:
             self.bot.open_url(self.bot.base_url + "explore")
             delay(1.5, 2.5)
 
-        search_box = self.bot.page.ele('@data-testid=SearchBox_Search_Input', timeout=5)
-        if search_box:
-            search_box.click()
-            search_box.clear()
-            human_typing(search_box, target_query)
-            delay(0.5)
-            search_box.input('\n')
+        try:
+            search_box = self.bot.page.locator('[data-testid="SearchBox_Search_Input"]').first
+            search_box.wait_for(state="visible", timeout=5000)
             
-            people_tab = self.bot.page.ele("xpath://span[text()='People' or text()='Lidé']", timeout=4)
-            if people_tab:
+            search_box.click()
+            search_box.fill("")
+            search_box.press_sequentially(target_query, delay=100)
+            delay(0.5)
+            search_box.press("Enter")
+            
+            people_tab = self.bot.page.locator("xpath=//span[text()='People' or text()='Lidé']").first
+            try:
+                people_tab.wait_for(state="visible", timeout=4000)
                 people_tab.click()
                 delay(1.5, 3)
+            except PlaywrightTimeoutError:
+                pass
             
-            first_user = self.bot.page.ele('@data-testid=UserCell', timeout=4)
-            if first_user:
-                print("[X-SEARCH] Profil nalezen v interním hledání. Klikám.")
-                first_user.click()
-                if self.bot.page.wait.ele_displayed('@data-testid=UserName', timeout=6):
-                    return True
-        return False
+            first_user = self.bot.page.locator('[data-testid="UserCell"]').first
+            first_user.wait_for(state="visible", timeout=4000)
+            
+            print("[X-SEARCH] Profil nalezen v interním hledání. Klikám.")
+            first_user.click()
+            
+            self.bot.page.locator('[data-testid="UserName"]').first.wait_for(state="visible", timeout=6000)
+            return True
+        except Exception:
+            return False
 
     def _google_search_fallback(self, target_query):
         print(f"[GOOGLE] Spouštím záchranné vyhledávání pro: '{target_query}'")
@@ -1117,25 +1693,22 @@ class XSearchModule:
             self.bot.open_url("https://www.google.com")
             self.bot.handle_popups(['Přijmout vše', 'Accept all', 'Souhlasím', 'I agree'])
             
-            search_input = self.bot.page.ele('tag:textarea@name=q', timeout=2) or self.bot.page.ele('tag:input@name=q', timeout=2)
+            search_input = self.bot.page.locator('textarea[name="q"], input[name="q"]').first
+            search_input.fill(f"{target_query} twitter")
+            delay(0.5)
+            search_input.press("Enter")
             
-            if search_input:
-                query = f"{target_query} twitter"
-                search_input.input(query)
-                delay(0.5)
-                self.bot.page.actions.type_key('ENTER')
-                
-                print("[GOOGLE] Čekám na výsledky...")
-                delay(2, 3)
-                
-                results = self.bot.page.eles('tag:a', timeout=3)
-                for res in results:
-                    href = res.attr('href')
-                    if href and ("twitter.com/" in href or "x.com/" in href) and "status" not in href and "search" not in href:
-                        print(f"[GOOGLE] Nalezen profil: {href}")
-                        res.click()
-                        delay(3, 5)
-                        return True
+            print("[GOOGLE] Čekám na výsledky...")
+            delay(2, 3)
+            
+            results = self.bot.page.locator('a').all()
+            for res in results:
+                href = res.get_attribute('href')
+                if href and ("twitter.com/" in href or "x.com/" in href) and "status" not in href and "search" not in href:
+                    print(f"[GOOGLE] Nalezen profil: {href}")
+                    res.click()
+                    delay(3, 5)
+                    return True
             return False
         except Exception as e:
             print(f"[GOOGLE ERROR] {e}")
@@ -1166,35 +1739,49 @@ class XUtils:
         return int(num)
 
     @staticmethod
-    def extract_media(article, current_text):
+    def extract_media(article_locator, current_text):
         """Vrátí tuple (updated_text, media_url, is_video)"""
         media_url = None
         is_video = False
         
         try:
-            # Foto
-            photo_ele = article.ele('@data-testid=tweetPhoto', timeout=0.05)
-            # Video
-            video_ele = article.ele('@data-testid=videoPlayer', timeout=0.05)
+            # 1. Hledáme primárně explicitní video přehrávač nebo tag video
+            video_loc = article_locator.locator('[data-testid="videoPlayer"], video').first
+            photo_loc = article_locator.locator('[data-testid="tweetPhoto"]').first
             
-            if photo_ele:
-                img_ele = photo_ele.ele('tag:img', timeout=0.05)
-                if img_ele:
-                    media_url = img_ele.attr('src')
-                if not current_text.strip():
-                    current_text = "[OBSAHUJE FOTKU]"
-                    
-            elif video_ele:
+            if video_loc.count() > 0:
                 is_video = True
-                # Zkusíme získat alespoň poster (thumbnail)
-                poster_video = video_ele.ele('tag:video', timeout=0.05)
-                if poster_video:
-                    media_url = poster_video.attr('poster')
+                
+                # Zjištění, zda je nalezený element přímo video tag
+                is_video_tag = video_loc.evaluate("el => el.tagName.toLowerCase() === 'video'")
+                if is_video_tag:
+                    media_url = video_loc.get_attribute('poster')
+                else:
+                    poster_video = video_loc.locator('video').first
+                    if poster_video.count() > 0:
+                        media_url = poster_video.get_attribute('poster')
                 
                 if not current_text.strip():
                     current_text = "[OBSAHUJE VIDEO]"
                     
-        except:
+            # 2. Pokud se tváří jako fotka, zkontrolujeme ji
+            elif photo_loc.count() > 0:
+                img_loc = photo_loc.locator('img').first
+                if img_loc.count() > 0:
+                    media_url = img_loc.get_attribute('src')
+                    
+                    # Záchranná detekce: X často lazy-loaduje videa jako statické obrázky
+                    # Pokud URL obsahuje text indikující náhled videa, přehodnotíme to
+                    if media_url and ('video_thumb' in media_url or 'ext_tw_video' in media_url):
+                        is_video = True
+                        if not current_text.strip():
+                            current_text = "[OBSAHUJE VIDEO]"
+                            
+                # Pokud to video opravdu není, potvrdíme fotku
+                if not is_video and not current_text.strip():
+                    current_text = "[OBSAHUJE FOTKU]"
+                    
+        except Exception:
             pass
                 
         return current_text, media_url, is_video
@@ -1207,20 +1794,21 @@ class XUtils:
 
 ## Soubor: social_bot\src\core\base_bot.py
 ```py
-from DrissionPage import ChromiumPage, ChromiumOptions
-from src.utils.human_input import delay
 import os
 from pathlib import Path
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
+from src.utils.human_input import delay
 
 class BaseBot:
     def __init__(self, headless=False, user_id="default", platform="general"):
         self.user_id = str(user_id)
         self.platform = platform
+        
+        self.playwright = sync_playwright().start()
+        self.context = None
         self.page = self._setup_driver(headless)
 
     def _setup_driver(self, headless):
-        co = ChromiumOptions()
-        
         current_file = Path(__file__).resolve()
         project_root = current_file.parent.parent.parent
         
@@ -1228,63 +1816,75 @@ class BaseBot:
         profile_path = project_root / 'profiles' / profile_folder
         os.makedirs(profile_path, exist_ok=True)
         
-        print(f"[BOT] Nastavuji izolovaný profil: {profile_path}")
+        print(f"[BOT] Nastavuji izolovaný profil (Playwright): {profile_path}")
         
-        browser_path = project_root / 'browser' / 'chrome.exe'
-        if browser_path.exists():
-            co.set_paths(browser_path=str(browser_path))
-        
-        co.set_user_data_path(str(profile_path))
-        co.set_local_port(9333) 
-
-        if headless:
-            co.headless(True)
-        
-        # ZMĚNA: Pouze zajistíme start na primárním monitoru.
-        co.set_argument('--window-position=0,0') 
-        # (Argument --start-maximized byl odstraněn, vyvolával konflikt v Chromiu)
-
-        co.set_argument('--no-first-run')
-        co.set_argument('--no-default-browser-check') 
-        co.set_argument('--restore-last-session')
+        args = [
+            '--disable-blink-features=AutomationControlled',
+            '--window-position=0,0',
+            '--disable-infobars',
+            '--disable-extensions'
+        ]
 
         try:
-            page = ChromiumPage(co)
-            # ZMĚNA: Nativní spolehlivá maximalizace okna pomocí DrissionPage
-            page.set.window.max() 
+            self.context = self.playwright.chromium.launch_persistent_context(
+                user_data_dir=str(profile_path),
+                headless=headless,
+                args=args,
+                no_viewport=True,
+                channel="chrome",
+                accept_downloads=True
+            )
             
-            # Poznámka: Pokud jsi myslel "absolutní fullscreen" bez hlavního panelu Windows (jako po stisku F11), 
-            # nahraď řádek výše tímto: page.set.window.full()
+            page = self.context.pages[0] if self.context.pages else self.context.new_page()
+            
+            # Aplikace vlastních anti-detekčních skriptů (nahrazuje playwright-stealth)
+            self._apply_stealth_scripts(page)
             
             return page
             
         except Exception as e:
-            print(f"[CRITICAL ERROR] Nelze spustit prohlížeč: {e}")
+            print(f"[CRITICAL ERROR] Nelze spustit Playwright prohlížeč: {e}")
+            if self.playwright:
+                self.playwright.stop()
             raise e
+
+    def _apply_stealth_scripts(self, page):
+        """Aplikuje základní anti-detekční skripty přímo přes Playwright."""
+        # Skrytí příznaku botnetu
+        page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+        # Falešné pluginy (často kontrolováno Instagramem a X)
+        page.add_init_script("Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3]})")
+        # Falešné jazyky
+        page.add_init_script("Object.defineProperty(navigator, 'languages', {get: () => ['cs-CZ', 'cs', 'en-US', 'en']})")
 
     def open_url(self, url):
         print(f"[BOT] Otevírám {url}")
         try:
-            self.page.get(url)
+            self.page.goto(url, wait_until="domcontentloaded", timeout=30000)
             delay(3, 5)
         except Exception as e:
             print(f"[ERROR] Chyba při otevírání URL: {e}")
 
     def find_element_smart(self, selector, description="prvek", timeout=10):
         try:
-            return self.page.ele(selector, timeout=timeout)
-        except:
+            locator = self.page.locator(selector).first
+            locator.wait_for(state="attached", timeout=timeout * 1000)
+            return locator
+        except PlaywrightTimeoutError:
+            return None
+        except Exception as e:
+            print(f"[DEBUG] Chyba hledání prvku '{description}': {e}")
             return None
 
     def click_smart(self, selector, description="tlačítko", timeout=5):
-        ele = self.find_element_smart(selector, description, timeout)
-        if ele:
+        locator = self.find_element_smart(selector, description, timeout)
+        if locator:
             try:
-                ele.click()
+                locator.click(timeout=timeout * 1000)
                 return True
             except:
                 try:
-                    ele.click(by_js=True)
+                    locator.click(force=True, timeout=timeout * 1000)
                     return True
                 except:
                     pass
@@ -1292,33 +1892,31 @@ class BaseBot:
         
     def handle_popups(self, triggers):
         for text in triggers:
-            ele = self.page.ele(f'text:{text}', timeout=0.5)
-            if ele:
-                try:
-                    ele.click()
+            try:
+                locator = self.page.get_by_text(text, exact=False).first
+                if locator.is_visible(timeout=500):
+                    locator.click(force=True)
                     print(f"[BOT] Odkliknuto vyskakovací okno: '{text}'")
                     delay(1)
                     return True
-                except:
-                    try:
-                        ele.click(by_js=True)
-                        return True
-                    except:
-                        pass
+            except:
+                pass
         return False
 
     def close(self):
-        # POJISTKA: Pokud už je stránka zavřená, nedělej nic
-        if getattr(self, 'page', None) is None:
+        if getattr(self, 'context', None) is None:
             return
             
-        print(f"[BOT] Ukládám profil {self.user_id}_{self.platform} a zavírám...")
+        print(f"[BOT] Ukládám profil {self.user_id}_{self.platform} a zavírám (Playwright)...")
         try:
-            self.page.quit() 
-            self.page = None # Vynulujeme objekt, abychom nezavírali dvakrát
+            self.context.close()
+            if self.playwright:
+                self.playwright.stop()
+            self.context = None
+            self.page = None
             print("[BOT] Uloženo.")
         except Exception:
-            pass # Ignorujeme chyby, pokud už uživatel prohlížeč zavřel křížkem
+            pass
 ```
 
 ## Soubor: social_bot\src\core\database.py
@@ -1430,6 +2028,17 @@ class DatabaseManager:
             )
         ''')
         
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS connections (
+                id TEXT PRIMARY KEY,
+                platform TEXT NOT NULL,
+                source_username TEXT NOT NULL,
+                target_username TEXT NOT NULL,
+                connection_type TEXT NOT NULL,
+                scraped_at TIMESTAMP,
+                UNIQUE(platform, source_username, target_username, connection_type)
+            )
+        ''')
         self.conn.commit()
 
     def _migrate_db(self):
@@ -1563,6 +2172,26 @@ class DatabaseManager:
         except Exception as e:
             print(f"[DB ERROR] Chyba při hledání handle: {e}")
             return None
+        
+    def upsert_connection(self, platform, source_username, target_username, connection_type="follower"):
+        now = datetime.now(timezone.utc).isoformat()
+        self.cursor.execute('''
+            SELECT id FROM connections 
+            WHERE platform = ? AND source_username = ? AND target_username = ? AND connection_type = ?
+        ''', (platform, source_username, target_username, connection_type))
+        row = self.cursor.fetchone()
+        
+        if row:
+            conn_id = row[0]
+            self.cursor.execute('UPDATE connections SET scraped_at = ? WHERE id = ?', (now, conn_id))
+        else:
+            conn_id = str(uuid.uuid4())
+            self.cursor.execute('''
+                INSERT INTO connections (id, platform, source_username, target_username, connection_type, scraped_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (conn_id, platform, source_username, target_username, connection_type, now))
+        self.conn.commit()
+        return conn_id
 
     def close(self):
         if self.conn:
@@ -1703,11 +2332,10 @@ class App(ctk.CTk):
                 self.users_map[f"{user['ID']} - {user['name']}"] = user
         except: pass
 
-    # --- BOT LOGIC (Zůstává zde kvůli Threadingu a přístupu ke stavu) ---
+    # --- BOT LOGIC ---
     def start_thread(self, platform, action):
         if self.is_running: messagebox.showwarning("Busy", "Bot již běží."); return
         
-        # Data taháme z DashboardFrame
         key = self.frame_dash.user_var.get()
         if not key: messagebox.showerror("Chyba", "Vyber identitu."); return
         
@@ -1718,24 +2346,39 @@ class App(ctk.CTk):
         target_input = self.frame_dash.target_var.get().strip()
         if action == "scrape" and not target_input: messagebox.showwarning("Chyba", "Zadej cíl."); return
         
+        # Načtení limitů
         limit = 10
-        if self.frame_dash.scrape_all_var.get(): limit = -1
+        if self.frame_dash.scrape_all_var.get(): 
+            limit = -1
         else:
             try: limit = int(self.frame_dash.limit_var.get())
-            except ValueError: messagebox.showerror("Chyba", "Limit musí být číslo."); return
+            except ValueError: messagebox.showerror("Chyba", "Limit příspěvků musí být číslo."); return
+            
+        try: comments_limit = int(self.frame_dash.comments_limit_var.get())
+        except ValueError: messagebox.showerror("Chyba", "Limit komentářů musí být číslo."); return
         
         self.is_running = True
         txt_limit = "VŠE" if limit == -1 else str(limit)
-        self.status_label.configure(text=f"● Běží: {platform} {action} (Limit: {txt_limit})", text_color=COLORS["primary"])
+        self.status_label.configure(text=f"● Běží: {platform} {action} (P: {txt_limit}, K: {comments_limit})", text_color=COLORS["primary"])
+
+        try: followers_limit = int(self.frame_dash.followers_limit_var.get())
+        except ValueError: messagebox.showerror("Chyba", "Limit sledujících musí být číslo."); return
         
-        # Vyčistit log
+        try: following_limit = int(self.frame_dash.following_limit_var.get())
+        except ValueError: messagebox.showerror("Chyba", "Limit 'Sleduje' musí být číslo."); return
+        
+        self.is_running = True
+        txt_limit = "VŠE" if limit == -1 else str(limit)
+        self.status_label.configure(text=f"● Běží: {platform} {action} (P: {txt_limit}, K: {comments_limit}, SE: {followers_limit}, SD: {following_limit})", text_color=COLORS["primary"])
+        
+        # Vyčištění logu a start vlákna s novým argumentem
         self.frame_dash.log_box.configure(state="normal")
         self.frame_dash.log_box.delete(1.0, tk.END)
         self.frame_dash.log_box.configure(state="disabled")
-        
-        threading.Thread(target=self.run_bot, args=(platform, social['username'], social['password'], key.split()[0], action, target_input, limit), daemon=True).start()
+        # Odeslání do threadu (přidán argument following_limit)
+        threading.Thread(target=self.run_bot, args=(platform, social['username'], social['password'], key.split()[0], action, target_input, limit, comments_limit, followers_limit, following_limit), daemon=True).start()
 
-    def run_bot(self, platform, u, p, uid, action, target_input, limit):
+    def run_bot(self, platform, u, p, uid, action, target_input, limit, comments_limit, followers_limit, following_limit):
         try:
             if platform == "instagram": bot = InstagramBot(u, p, uid)
             else: bot = XBot(u, p, uid)
@@ -1762,7 +2405,7 @@ class App(ctk.CTk):
                     
                     print(f"\n=== CÍL {i+1}/{total}: {target} ===")
                     try:
-                        bot.scraper.scrape_profile(target, limit)
+                        bot.scraper.scrape_profile(target, limit, comments_limit, followers_limit, following_limit)
                     except Exception as e:
                         print(f"[ERROR] Chyba u cíle {target}: {e}")
                     
@@ -1790,7 +2433,9 @@ class App(ctk.CTk):
     def stop_bot(self):
         if self.is_running:
             self.is_running = False
-            if self.current_bot: self.current_bot.close()
+            # Změna: Záměrně zde nevoláme self.current_bot.close().
+            # Vlákno (run_bot) si po změně is_running na False 
+            # samo vyskočí ze smyček a zavře prohlížeč bezpečně ve svém bloku finally.
             print("--- ZASTAVENO UŽIVATELEM ---")
 
 if __name__ == "__main__":
@@ -2007,7 +2652,7 @@ from src.gui.theme import COLORS
 class DashboardFrame(ctk.CTkFrame):
     def __init__(self, parent, controller):
         super().__init__(parent, fg_color="transparent")
-        self.controller = controller # Reference na hlavní App
+        self.controller = controller
         self.setup_ui()
 
     def setup_ui(self):
@@ -2043,32 +2688,56 @@ class DashboardFrame(ctk.CTkFrame):
         )
         self.target_entry.pack(fill="x", pady=(0, 15))
 
-        # Limity
-        limit_frame = ctk.CTkFrame(input_container, fg_color="transparent")
-        limit_frame.pack(fill="x")
-        ctk.CTkLabel(limit_frame, text="LIMIT PŘÍSPĚVKŮ", font=("Segoe UI", 11, "bold"), text_color=COLORS["text_dim"]).pack(anchor="w", pady=(0, 5))
+        # Limity (Kontejner pro všechny čtyři limity vedle sebe)
+        limits_container = ctk.CTkFrame(input_container, fg_color="transparent")
+        limits_container.pack(fill="x")
+        limits_container.grid_columnconfigure((0, 1, 2, 3), weight=1)
+
+        # -- Sloupec 1: Příspěvky --
+        limit_frame = ctk.CTkFrame(limits_container, fg_color="transparent")
+        limit_frame.grid(row=0, column=0, sticky="nw", padx=(0, 5))
+        ctk.CTkLabel(limit_frame, text="PŘÍSPĚVKY", font=("Segoe UI", 11, "bold"), text_color=COLORS["text_dim"]).pack(anchor="w", pady=(0, 5))
         
         limit_inner = ctk.CTkFrame(limit_frame, fg_color="transparent")
         limit_inner.pack(fill="x")
         
         self.scrape_all_var = ctk.BooleanVar(value=False)
-        self.chk_all = ctk.CTkCheckBox(
-            limit_inner, text="Stáhnout vše", variable=self.scrape_all_var, 
-            command=self.toggle_limit_entry, fg_color=COLORS["primary"], 
-            hover_color=COLORS["primary_hover"], border_color=COLORS["border"], font=("Segoe UI", 13)
-        )
-        self.chk_all.pack(side="left", padx=(0, 20))
+        self.chk_all = ctk.CTkCheckBox(limit_inner, text="Vše", variable=self.scrape_all_var, command=self.toggle_limit_entry, fg_color=COLORS["primary"], hover_color=COLORS["primary_hover"], border_color=COLORS["border"], font=("Segoe UI", 13), width=45)
+        self.chk_all.pack(side="left", padx=(0, 5))
         
         self.limit_var = ctk.StringVar(value="10")
-        self.limit_entry = ctk.CTkEntry(
-            limit_inner, textvariable=self.limit_var, width=100, height=35, 
-            font=("Segoe UI", 13), border_color=COLORS["border"], 
-            fg_color=COLORS["panel_bg"], text_color=COLORS["text_main"]
-        )
+        self.limit_entry = ctk.CTkEntry(limit_inner, textvariable=self.limit_var, width=50, height=35, font=("Segoe UI", 13), border_color=COLORS["border"], fg_color=COLORS["panel_bg"], text_color=COLORS["text_main"])
         self.limit_entry.pack(side="left")
 
+        # -- Sloupec 2: Komentáře --
+        comm_limit_frame = ctk.CTkFrame(limits_container, fg_color="transparent")
+        comm_limit_frame.grid(row=0, column=1, sticky="nw", padx=5)
+        ctk.CTkLabel(comm_limit_frame, text="KOMENTÁŘE", font=("Segoe UI", 11, "bold"), text_color=COLORS["text_dim"]).pack(anchor="w", pady=(0, 5))
+        
+        self.comments_limit_var = ctk.StringVar(value="50")
+        self.comments_limit_entry = ctk.CTkEntry(comm_limit_frame, textvariable=self.comments_limit_var, width=70, height=35, font=("Segoe UI", 13), border_color=COLORS["border"], fg_color=COLORS["panel_bg"], text_color=COLORS["text_main"])
+        self.comments_limit_entry.pack(side="left")
+
+        # -- Sloupec 3: Sledující (Followers) --
+        fol_limit_frame = ctk.CTkFrame(limits_container, fg_color="transparent")
+        fol_limit_frame.grid(row=0, column=2, sticky="nw", padx=5)
+        ctk.CTkLabel(fol_limit_frame, text="SLEDUJÍCÍ", font=("Segoe UI", 11, "bold"), text_color=COLORS["text_dim"]).pack(anchor="w", pady=(0, 5))
+        
+        self.followers_limit_var = ctk.StringVar(value="50")
+        self.followers_limit_entry = ctk.CTkEntry(fol_limit_frame, textvariable=self.followers_limit_var, width=70, height=35, font=("Segoe UI", 13), border_color=COLORS["border"], fg_color=COLORS["panel_bg"], text_color=COLORS["text_main"])
+        self.followers_limit_entry.pack(side="left")
+
+        # -- Sloupec 4: Sleduje (Following) --
+        following_limit_frame = ctk.CTkFrame(limits_container, fg_color="transparent")
+        following_limit_frame.grid(row=0, column=3, sticky="nw", padx=(5, 0))
+        ctk.CTkLabel(following_limit_frame, text="SLEDUJE", font=("Segoe UI", 11, "bold"), text_color=COLORS["text_dim"]).pack(anchor="w", pady=(0, 5))
+        
+        self.following_limit_var = ctk.StringVar(value="50")
+        self.following_limit_entry = ctk.CTkEntry(following_limit_frame, textvariable=self.following_limit_var, width=70, height=35, font=("Segoe UI", 13), border_color=COLORS["border"], fg_color=COLORS["panel_bg"], text_color=COLORS["text_main"])
+        self.following_limit_entry.pack(side="left")
+
         # 2. AKCE
-        ctk.CTkLabel(self, text="AKCE", font=("Segoe UI", 11, "bold"), text_color=COLORS["text_dim"]).pack(anchor="w", pady=(10, 5))
+        ctk.CTkLabel(self, text="AKCE", font=("Segoe UI", 11, "bold"), text_color=COLORS["text_dim"]).pack(anchor="w", pady=(20, 5))
         actions_frame = ctk.CTkFrame(self, fg_color="transparent")
         actions_frame.pack(fill="x", pady=(0, 20))
         actions_frame.grid_columnconfigure((0, 1), weight=1)
@@ -2126,7 +2795,6 @@ class DashboardFrame(ctk.CTkFrame):
 
 ## Soubor: social_bot\src\gui\frames\database.py
 ```py
-# src/gui/frames/database.py
 import customtkinter as ctk
 from tkinter import ttk
 import sqlite3
@@ -2162,10 +2830,12 @@ class DatabaseFrame(ctk.CTkFrame):
         self.tab_db.add("Uživatelé")
         self.tab_db.add("Příspěvky")
         self.tab_db.add("Trendy")
+        self.tab_db.add("Síť (Connections)")
 
         self.tree_users = self.create_tree(self.tab_db.tab("Uživatelé"))
         self.tree_posts = self.create_tree(self.tab_db.tab("Příspěvky"))
         self.tree_trends = self.create_tree(self.tab_db.tab("Trendy"))
+        self.tree_connections = self.create_tree(self.tab_db.tab("Síť (Connections)"))
 
     def create_tree(self, parent):
         style = ttk.Style()
@@ -2191,7 +2861,7 @@ class DatabaseFrame(ctk.CTkFrame):
         if not self.controller.db_path.exists(): return
         
         # Clear
-        for t in [self.tree_users, self.tree_posts, self.tree_trends]:
+        for t in [self.tree_users, self.tree_posts, self.tree_trends, self.tree_connections]:
             for i in t.get_children(): t.delete(i)
             
         try:
@@ -2222,6 +2892,17 @@ class DatabaseFrame(ctk.CTkFrame):
             for c in self.tree_trends['columns']: self.tree_trends.heading(c, text=c, anchor="w")
             for r in cur.fetchall(): self.tree_trends.insert("", "end", values=r)
             
+            # Connections (Followers)
+            cur.execute("SELECT platform, source_username, target_username, connection_type, scraped_at FROM connections ORDER BY scraped_at DESC LIMIT 1000")
+            self.tree_connections['columns'] = ("Platforma", "Zdrojový Účet", "Nalezený Sledující", "Typ", "Staženo")
+            for c in self.tree_connections['columns']: 
+                self.tree_connections.heading(c, text=c, anchor="w")
+                self.tree_connections.column(c, width=150)
+            for r in cur.fetchall():
+                # Formátování data pro čistší zobrazení
+                date_str = r[4].split('T')[0] if r[4] else ""
+                self.tree_connections.insert("", "end", values=(r[0], r[1], r[2], r[3], date_str))
+
             conn.close()
         except Exception as e:
             print(f"[DB ERROR] {e}")
@@ -2359,9 +3040,13 @@ class ProfilesFrame(ctk.CTkFrame):
         # 4. Bio
         bio = user.get('bio')
         if bio:
-            short_bio = (bio.replace('\n', ' ')[:90] + "...") if len(bio)>90 else bio
+            # Bezpečné odstranění všech nových řádků a přebytečných mezer pro kompaktní UI kartu
+            clean_bio = " ".join(bio.split())
+            short_bio = (clean_bio[:90] + "...") if len(clean_bio) > 90 else clean_bio
+            
+            # Přidán parametr justify="left" pro správné zarovnání textu
             ctk.CTkLabel(card, text=short_bio, font=("Segoe UI", 12, "italic"), 
-                         text_color="#b0b0b0", anchor="w").grid(row=2, column=1, sticky="w", padx=5, pady=(0, 5))
+                         text_color="#b0b0b0", anchor="w", justify="left").grid(row=2, column=1, sticky="w", padx=5, pady=(0, 5))
 
         # 5. Metadata
         meta_frame = ctk.CTkFrame(card, fg_color="transparent")
@@ -2396,33 +3081,47 @@ def delay(min_seconds=1.0, max_seconds=3.0):
     """Náhodná prodleva mezi akcemi."""
     time.sleep(random.uniform(min_seconds, max_seconds))
 
-def human_typing(element, text):
+def human_typing(locator, text):
     """
-    Simuluje psaní člověka.
-    Určeno pro DrissionPage element.
+    Simuluje psaní člověka pro Playwright Locator s variabilním zpožděním.
+    Slouží jako alternativa k nativnímu locator.press_sequentially(text, delay=150),
+    pokud je vyžadována vyšší úroveň simulace (zcela náhodné pauzy mezi znaky).
     """
-    # DrissionPage má metodu .input(), která píše rovnou.
-    # Pokud chceme simulovat prodlevy, musíme psát po znacích.
-    
-    # Vyčistit pole (pokud to DrissionPage neudělá sám v kontextu)
-    # element.clear() 
-    
-    for char in text:
-        # append=True zajistí, že nepřepisujeme, ale přidáváme znaky
-        element.input(char, clear=False) 
-        
-        # Rychlost psaní (náhodná)
-        time.sleep(random.uniform(0.05, 0.2))
-        
-        # Občasná "chyba" (zjednodušeno pro stabilitu - zatím vynecháme Backspace logiku, 
-        # protože u DP je input čistší bez mazání)
+    try:
+        locator.fill("") # Vyčištění pole před zápisem
+        for char in text:
+            # press_sequentially jednoho znaku s náhodnou mezní pauzou
+            locator.press_sequentially(char, delay=int(random.uniform(10, 50)))
+            time.sleep(random.uniform(0.05, 0.25))
+    except Exception as e:
+        print(f"[DEBUG] Chyba při human_typing: {e}")
 
-def random_mouse_movement(page_object=None):
+def random_mouse_movement(page=None):
     """
-    Placeholder pro kompatibilitu.
-    DrissionPage ovládá prohlížeč přes protokol (CDP), nepotřebuje hýbat fyzickou myší 
-    jako Selenium, aby nebyl detekován.
+    Generuje náhodné pohyby myší napříč viewportem.
+    Využívá Playwright page.mouse API pro zvýšení důvěryhodnosti (stealth).
     """
-    pass
+    if not page:
+        return
+        
+    try:
+        viewport = page.viewport_size
+        if not viewport:
+            # Fallback hodnoty, pokud viewport není detekován
+            width, height = 1280, 720
+        else:
+            width = viewport['width']
+            height = viewport['height']
+            
+        # Provede 2 až 5 náhodných křivek/pohybů
+        for _ in range(random.randint(2, 5)):
+            target_x = random.randint(0, width)
+            target_y = random.randint(0, height)
+            
+            # steps určuje plynulost (počet mezikroků při pohybu kurzoru)
+            page.mouse.move(target_x, target_y, steps=random.randint(5, 15))
+            time.sleep(random.uniform(0.1, 0.4))
+            
+    except Exception:
+        pass
 ```
-

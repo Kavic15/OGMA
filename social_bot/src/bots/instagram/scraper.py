@@ -12,7 +12,7 @@ class InstagramScraper:
         if not text: 
             return 0
         
-        # OPRAVA: Odstranění nedělitelných mezer (\xa0) a všech dalších whitespace znaků
+        # Odstranění nedělitelných mezer (\xa0) a všech dalších whitespace znaků
         text = str(text).upper().replace('\xa0', '').replace('&NBSP;', '')
         text = re.sub(r'\s+', '', text)
         
@@ -38,7 +38,7 @@ class InstagramScraper:
         
         return int(num)
 
-    def scrape_post_and_comments(self, db_user_id, post_url):
+    def scrape_post_and_comments(self, db_user_id, post_url, comments_limit=50):
         print(f"\n  -> [IG-SCRAPER] Otevírám příspěvek: {post_url}")
         self.bot.open_url(post_url)
         delay(3, 5)
@@ -176,10 +176,11 @@ class InstagramScraper:
         print(f"  -> [IG-SCRAPER] Uložen příspěvek ID: {platform_post_id} | Lajky: {likes_count} | Komentáře: {comments_count} | Média: {len(media_urls)}")
 
         # --- Těžba komentářů ---
-        print(f"  -> [IG-SCRAPER] Těžím komentáře k tomuto příspěvku...")
+        print(f"  -> [IG-SCRAPER] Těžím komentáře k tomuto příspěvku (Limit: {comments_limit})...")
         comments_collected = 0
         processed_comment_ids = set()
-        max_comments = 50
+        
+        max_comments = comments_limit
 
         # OPRAVENÝ SKRIPT PRO KOMENTÁŘE
         js_extract_comments = """
@@ -331,9 +332,9 @@ class InstagramScraper:
             except: pass
             delay(1.5, 2.5)
 
-    def scrape_profile(self, target_query, limit=10):
+    def scrape_profile(self, target_query, limit=10, comments_limit=50, followers_limit=50, following_limit=50):
         limit_text = "NEOMEZENO" if limit == -1 else str(limit)
-        print(f"[IG-SCRAPER] Zahajuji simulaci lidského vyhledávání: '{target_query}' (Limit: {limit_text})")
+        print(f"[IG-SCRAPER] Zahajuji simulaci lidského vyhledávání: '{target_query}' (Limit: {limit_text} P / {comments_limit} K / {followers_limit} S / {following_limit} S)")
 
         if "instagram.com" not in self.bot.page.url:
             self.bot.open_url(self.bot.base_url)
@@ -401,7 +402,7 @@ class InstagramScraper:
 
         print("[IG-SCRAPER] Stahuji data o uživateli...")
         
-        # OPRAVA: Komplexní extrakce profilu přes Javascript
+        # Komplexní extrakce profilu přes Javascript s lepším filtrováním
         profile_js = """
         () => {
             let header = document.querySelector('header');
@@ -451,15 +452,20 @@ class InstagramScraper:
             
             // Extrakce všech textových elementů pro jméno a bio
             let dirEls = Array.from(header.querySelectorAll('span[dir="auto"], h1[dir="auto"], h2[dir="auto"], div[dir="auto"]'));
-            let ignoreList = ['sledovat', 'zpráva', 'follow', 'message', 'příspěvky', 'sledující', 'sleduji', 'posts', 'followers', 'following', 'přidat do příběhu', 'add to story'];
             
             for(let el of dirEls) {
                 let t = el.innerText.trim();
                 if(!t) continue;
                 
                 let tLow = t.toLowerCase();
-                // Filtrování tlačítek a UI textů
-                if (ignoreList.includes(tLow) || tLow.includes('příspěvky') || tLow.includes('sledující')) continue;
+                
+                // Opravené a přísnější filtrování tlačítek a statistik (zachytí i "Sleduji (47)")
+                let isStat = tLow.includes('příspěvky') || tLow.includes('sledující') || tLow.includes('sleduji') ||
+                             tLow.includes('posts') || tLow.includes('followers') || tLow.includes('following');
+                
+                let isBtn = ['sledovat', 'zpráva', 'follow', 'message', 'přidat do příběhu', 'add to story'].includes(tLow);
+                
+                if (isStat || isBtn) continue;
                 
                 if (!data.texts.includes(t)) {
                     data.texts.push(t);
@@ -569,13 +575,115 @@ class InstagramScraper:
         if not final_urls:
             print("[IG-SCRAPER] Nebyly nalezeny žádné příspěvky (profil je soukromý nebo prázdný).")
             return
+            
+        if followers_limit > 0:
+            self._scrape_network(actual_username, followers_limit, "followers")
+        if following_limit > 0:
+            self._scrape_network(actual_username, following_limit, "following")
 
         print(f"\n[IG-SCRAPER] Zahajuji hloubkovou těžbu {len(final_urls)} příspěvků...")
         for i, url in enumerate(final_urls):
             print(f"--- Zpracovávám {i+1} z {len(final_urls)} ---")
             try:
-                self.scrape_post_and_comments(user_id, url)
+                self.scrape_post_and_comments(user_id, url, comments_limit)
             except Exception as e:
                 print(f"[IG-SCRAPER] Chyba při těžbě příspěvku {url}: {e}")
 
         print("\n[IG-SCRAPER] Kompletní těžba cílového IG profilu a komentářů byla úspěšně dokončena.")
+
+    def _scrape_network(self, username, limit, mode):
+        if limit <= 0: return
+        
+        conn_type = "follower" if mode == "followers" else "following"
+        type_cs = "Sledujících" if mode == "followers" else "Sledovaných"
+        print(f"\n[IG-NETWORK] --- Těžba {type_cs} pro @{username} (Limit: {limit}) ---")
+        
+        try:
+            if f"/{username}/" not in self.bot.page.url:
+                self.bot.open_url(f"{self.bot.base_url}{username}/")
+                delay(2, 4)
+
+            link = self.bot.page.locator(f'header a[href*="/{mode}/"]').first
+            if link.is_visible(timeout=5000):
+                link.click()
+            else:
+                print(f"[IG-NETWORK] Tlačítko {type_cs} nebylo nalezeno.")
+                return
+
+            dialog = self.bot.page.locator('div[role="dialog"]').first
+            dialog.wait_for(state="visible", timeout=8000)
+            delay(2, 4)
+
+        except Exception as e:
+            print(f"[IG-NETWORK] Nelze otevřít seznam {type_cs}: {e}")
+            return
+
+        collected = 0
+        processed = set()
+        scroll_attempts = 0
+
+        # JS injekce zaměřená čistě na izolované posouvání uvnitř Modalu
+        js_extract = """
+        () => {
+            let dialog = document.querySelector('div[role="dialog"]');
+            if (!dialog) return {users: [], scrolled: false};
+
+            let users = [];
+            let links = dialog.querySelectorAll('a[href]');
+            for (let a of links) {
+                let href = a.getAttribute('href');
+                if (href && href.startsWith('/') && href.split('/').length === 3) {
+                    let un = href.replace(/\\//g, '');
+                    if (un && !['explore', 'reels', 'direct', 'stories'].includes(un)) {
+                        users.push(un);
+                    }
+                }
+            }
+
+            let scrolled = false;
+            let divs = dialog.querySelectorAll('div');
+            for (let d of divs) {
+                let style = window.getComputedStyle(d);
+                if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+                    if (d.scrollHeight > d.clientHeight + 10) {
+                        d.scrollTop += 600; 
+                        scrolled = true;
+                        break;
+                    }
+                }
+            }
+            return {users: [...new Set(users)], scrolled: scrolled};
+        }
+        """
+
+        while collected < limit and scroll_attempts < 10:
+            try:
+                data = self.bot.page.evaluate(js_extract)
+                new_found = False
+
+                for target_user in data.get('users', []):
+                    if target_user == username: continue
+                    if collected >= limit: break
+
+                    if target_user not in processed:
+                        processed.add(target_user)
+                        new_found = True
+                        self.db.upsert_connection("IG", username, target_user, conn_type)
+                        collected += 1
+                        print(f"  -> Uložen záznam ({conn_type}): @{target_user} ({collected}/{limit})")
+
+                if not new_found: scroll_attempts += 1
+                else: scroll_attempts = 0
+
+                delay(1.5, 3.0)
+            except Exception as e:
+                print(f"[IG-NETWORK] Chyba při těžbě modal okna: {e}")
+                break
+
+        print(f"[IG-NETWORK] Těžba {type_cs} dokončena.")
+        
+        try:
+            close_btn = self.bot.page.locator('div[role="dialog"] button, css:svg[aria-label="Zavřít"], css:svg[aria-label="Close"]').first
+            if close_btn.is_visible(timeout=1000): close_btn.click(force=True)
+            delay(1)
+        except: pass

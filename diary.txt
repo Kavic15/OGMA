@@ -126,3 +126,25 @@ KOMPLETNÍ MIGRACE NA PLAYWRIGHT A STABILIZACE SCRAPERŮ
    - Média a Kolotoče (Carousels): Scraper nyní dokáže "proklikat" kolotoč fotek a uložit všechny adresy oddělené středníkem. Zavedeno striktní pravidlo (ignorování tagu <a>), které úspěšně zamezuje stahování fotek z cizích příspěvků v doporučené mřížce.
    - Extrakce metadat: Kompletní přepis těžby profilu do komplexní JavaScriptové injekce. Bot přesně čte jméno, bio, verifikaci, followers/following a odkaz na web přímo z HTML hlavičky profilu, čímž obchází zmatené zanořování divů na IG.
    - Oprava komentářů: Zavedeny filtry omezující délku textu pro detekci lajků a odstraňující systémové texty ("Zobrazit všech X odpovědí"), díky čemuž se statistiky ukládají naprosto přesně.
+
+10.3.2026
+--------------------------------------------------------------------------------
+IMPLEMENTACE TĚŽBY SÍTĚ (FOLLOWERS/FOLLOWING) A OPRAVY GUI
+
+1. Uživatelské vstupy a flexibilní limity:
+   - Do ovládacího panelu (Dashboard) přidány dedikované vstupy pro limity: Příspěvky, Komentáře, Sledující a Sleduje.
+   - Hodnoty jsou nyní dynamicky předávány napříč celou architekturou až do jednotlivých modulů scraperu.
+
+2. Těžba Sítě (Network Scraping):
+   - Nově implementováno bezpečné stahování vazeb profilů (omezené vzorky pro ochranu účtů před bany).
+   - IG Scraper: Napsána pokročilá JS injekce, která izoluje scrollování výhradně na vyskakovací modální okno se seznamem uživatelů a parsuje jejich href odkazy.
+   - X Scraper (Twitter): Vytvořen nový modul network.py. Pro spolehlivou extrakci uživatelských jmen (i přes vizuální překážky jako jsou odznaky ověření) nasazen regulární výraz hledající vzor @handle.
+
+3. Databáze a nová vizualizace (Vault):
+   - Vytvořena nová databázová tabulka "connections" evidující vztahy: zdrojový účet -> nalezený uživatel -> typ vazby (follower/following).
+   - Do modulu DatabaseFrame v GUI přidána čtvrtá záložka "Síť (Connections)", která tyto nasbírané vztahy okamžitě zobrazuje formou tabulky.
+
+4. Opravy chyb a stabilizace UI:
+   - Vyřešen problém se zamrznutím X Scraperu u profilů s 0 příspěvky (přidána pojistka počítající iterace bez nového obsahu).
+   - Zpřísněn JS filtr pro extrakci Instagram biografie (nyní spolehlivě odfiltruje systémové texty jako "Sleduji (47)").
+   - Opraveno parsování Instagram UI u profilových karet (odstranění neviditelných znaků a prázdných řádků pomocí split/join a přidáno levé zarovnání textu pro kompaktnější vzhled).

@@ -1,4 +1,3 @@
-# src/gui/frames/database.py
 import customtkinter as ctk
 from tkinter import ttk
 import sqlite3
@@ -34,10 +33,12 @@ class DatabaseFrame(ctk.CTkFrame):
         self.tab_db.add("Uživatelé")
         self.tab_db.add("Příspěvky")
         self.tab_db.add("Trendy")
+        self.tab_db.add("Síť (Connections)")
 
         self.tree_users = self.create_tree(self.tab_db.tab("Uživatelé"))
         self.tree_posts = self.create_tree(self.tab_db.tab("Příspěvky"))
         self.tree_trends = self.create_tree(self.tab_db.tab("Trendy"))
+        self.tree_connections = self.create_tree(self.tab_db.tab("Síť (Connections)"))
 
     def create_tree(self, parent):
         style = ttk.Style()
@@ -63,7 +64,7 @@ class DatabaseFrame(ctk.CTkFrame):
         if not self.controller.db_path.exists(): return
         
         # Clear
-        for t in [self.tree_users, self.tree_posts, self.tree_trends]:
+        for t in [self.tree_users, self.tree_posts, self.tree_trends, self.tree_connections]:
             for i in t.get_children(): t.delete(i)
             
         try:
@@ -94,6 +95,17 @@ class DatabaseFrame(ctk.CTkFrame):
             for c in self.tree_trends['columns']: self.tree_trends.heading(c, text=c, anchor="w")
             for r in cur.fetchall(): self.tree_trends.insert("", "end", values=r)
             
+            # Connections (Followers)
+            cur.execute("SELECT platform, source_username, target_username, connection_type, scraped_at FROM connections ORDER BY scraped_at DESC LIMIT 1000")
+            self.tree_connections['columns'] = ("Platforma", "Zdrojový Účet", "Nalezený Sledující", "Typ", "Staženo")
+            for c in self.tree_connections['columns']: 
+                self.tree_connections.heading(c, text=c, anchor="w")
+                self.tree_connections.column(c, width=150)
+            for r in cur.fetchall():
+                # Formátování data pro čistší zobrazení
+                date_str = r[4].split('T')[0] if r[4] else ""
+                self.tree_connections.insert("", "end", values=(r[0], r[1], r[2], r[3], date_str))
+
             conn.close()
         except Exception as e:
             print(f"[DB ERROR] {e}")

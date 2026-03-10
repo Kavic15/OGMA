@@ -128,9 +128,13 @@ class ProfilesFrame(ctk.CTkFrame):
         # 4. Bio
         bio = user.get('bio')
         if bio:
-            short_bio = (bio.replace('\n', ' ')[:90] + "...") if len(bio)>90 else bio
+            # Bezpečné odstranění všech nových řádků a přebytečných mezer pro kompaktní UI kartu
+            clean_bio = " ".join(bio.split())
+            short_bio = (clean_bio[:90] + "...") if len(clean_bio) > 90 else clean_bio
+            
+            # Přidán parametr justify="left" pro správné zarovnání textu
             ctk.CTkLabel(card, text=short_bio, font=("Segoe UI", 12, "italic"), 
-                         text_color="#b0b0b0", anchor="w").grid(row=2, column=1, sticky="w", padx=5, pady=(0, 5))
+                         text_color="#b0b0b0", anchor="w", justify="left").grid(row=2, column=1, sticky="w", padx=5, pady=(0, 5))
 
         # 5. Metadata
         meta_frame = ctk.CTkFrame(card, fg_color="transparent")

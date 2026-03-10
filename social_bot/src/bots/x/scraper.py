@@ -3,6 +3,7 @@ from .modules.search import XSearchModule
 from .modules.profile import XProfileModule
 from .modules.posts import XPostsModule
 from .modules.comments import XCommentsModule
+from .modules.network import XNetworkModule
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 class XScraper:
@@ -14,10 +15,13 @@ class XScraper:
         self.profile_module = XProfileModule(bot, self.db)
         self.posts_module = XPostsModule(bot, self.db)
         self.comments_module = XCommentsModule(bot, self.db)
+        self.network_module = XNetworkModule(bot, self.db)
 
-    def scrape_profile(self, target_query, limit=10):
+    def scrape_profile(self, target_query, limit=10, comments_limit=50, followers_limit=50, following_limit=50):
         limit_text = "NEOMEZENO" if limit == -1 else str(limit)
-        print(f"[X-SCRAPER] Cíl: '{target_query}' (Limit: {limit_text})")
+        
+        # Drobná úprava printu, aby ukazoval i limit sledujících
+        print(f"[X-SCRAPER] Cíl: '{target_query}' (Limit: {limit_text} P / {comments_limit} K / {followers_limit} S)")
         
         if not self.search_module.find_profile(target_query):
             print(f"[ERROR] Profil '{target_query}' nebyl nalezen ani přes Google.")
@@ -40,9 +44,15 @@ class XScraper:
             self.posts_module.process_videos(videos_queue)
 
         if comments_queue:
-            self.comments_module.scrape_for_queue(comments_queue, limit=20)
+            self.comments_module.scrape_for_queue(comments_queue, limit=comments_limit)
         else:
             print("[X-SCRAPER] Žádné příspěvky ke zpracování komentářů.")
+            
+        if followers_limit > 0:
+            self.network_module.scrape_followers(actual_username, limit=followers_limit)
+            
+        if following_limit > 0:
+            self.network_module.scrape_following(actual_username, limit=following_limit)
 
         print("\n[X-SCRAPER] Hotovo.")
 

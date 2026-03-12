@@ -15,6 +15,7 @@ from src.gui.utils import PrintLogger
 from src.gui.frames.dashboard import DashboardFrame
 from src.gui.frames.profiles import ProfilesFrame
 from src.gui.frames.database import DatabaseFrame
+from src.gui.frames.analysis import AnalysisFrame
 
 from src.bots.instagram.bot import InstagramBot
 from src.bots.x.bot import XBot
@@ -63,6 +64,7 @@ class App(ctk.CTk):
         self.frame_dash = DashboardFrame(self.main_area, self)
         self.frame_prof = ProfilesFrame(self.main_area, self)
         self.frame_db = DatabaseFrame(self.main_area, self)
+        self.frame_analysis = AnalysisFrame(self.main_area, self)
 
         # 4. Logger Hook
         # Přesměrujeme stdout do log boxu uvnitř DashboardFrame
@@ -83,6 +85,7 @@ class App(ctk.CTk):
         self.btn_nav_dash = self.create_nav_btn("Přehled (Dashboard)", "dashboard")
         self.btn_nav_prof = self.create_nav_btn("Scrapnuté Profily", "profiles") 
         self.btn_nav_db = self.create_nav_btn("Databáze (Vault)", "database")
+        self.btn_nav_analysis = self.create_nav_btn("Analýza", "analysis")
         
         ctk.CTkLabel(self.sidebar, text="", height=50).pack(side="bottom") # Spacer
 
@@ -101,13 +104,14 @@ class App(ctk.CTk):
 
     def show_frame(self, name):
         # Reset buttons (simple style reset)
-        for btn in [self.btn_nav_dash, self.btn_nav_prof, self.btn_nav_db]:
+        for btn in [self.btn_nav_dash, self.btn_nav_prof, self.btn_nav_db, self.btn_nav_analysis]:
             btn.configure(fg_color="transparent", text_color=COLORS["text_dim"])
         
         # Hide all
         self.frame_dash.grid_forget()
         self.frame_prof.grid_forget()
         self.frame_db.grid_forget()
+        self.frame_analysis.grid_forget()
 
         if name == "dashboard":
             self.frame_dash.grid(row=0, column=0, sticky="nsew", padx=30, pady=30)
@@ -120,6 +124,10 @@ class App(ctk.CTk):
             self.frame_db.grid(row=0, column=0, sticky="nsew", padx=30, pady=30)
             self.btn_nav_db.configure(fg_color=COLORS["panel_bg"], text_color=COLORS["primary"])
             self.frame_db.refresh_data()
+        elif name == "analysis":
+            self.frame_analysis.grid(row=0, column=0, sticky="nsew", padx=30, pady=30)
+            self.btn_nav_analysis.configure(fg_color=COLORS["panel_bg"], text_color=COLORS["primary"])
+            self.frame_analysis.refresh_results()
 
     def load_users(self):
         if not os.path.exists(self.data_path): return
@@ -212,6 +220,14 @@ class App(ctk.CTk):
                 bot.scraper.scrape_trending()
             
             print("--- HOTOVO ---")
+            if action == "scrape":
+                print("[INFO] Spouštím automatickou sentiment analýzu nových komentářů...")
+                try:
+                    from src.analysis.sentiment import SentimentAnalyzer
+                    sa = SentimentAnalyzer()
+                    sa.analyze_pending()
+                except Exception as e:
+                    print(f"[SENTIMENT ERROR] Automatická analýza selhala: {e}")
             self.status_label.configure(text=f"● Hotovo (Čekám na STOP)", text_color="#2eb85c")
             while self.is_running: time.sleep(1)
 

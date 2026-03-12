@@ -1,4 +1,4 @@
-#TODO: OCR, 
+#TODO: Vizualizace dat (Activity Heatmap, Síťový graf, Sentiment v čase), Export dat (CSV/XLSX/PDF), Technické flagy (Meme Warfare, New Account, High Impact, Bot Suspect), Odvozená analytika (Hashtagy, Mentions, Word Cloud)
 
 10.2.2026
 --------------------------------------------------------------------------------
@@ -148,3 +148,58 @@ IMPLEMENTACE TĚŽBY SÍTĚ (FOLLOWERS/FOLLOWING) A OPRAVY GUI
    - Vyřešen problém se zamrznutím X Scraperu u profilů s 0 příspěvky (přidána pojistka počítající iterace bez nového obsahu).
    - Zpřísněn JS filtr pro extrakci Instagram biografie (nyní spolehlivě odfiltruje systémové texty jako "Sleduji (47)").
    - Opraveno parsování Instagram UI u profilových karet (odstranění neviditelných znaků a prázdných řádků pomocí split/join a přidáno levé zarovnání textu pro kompaktnější vzhled).
+
+11.3.2026
+--------------------------------------------------------------------------------
+ANALYTICKÁ NADSTAVBA — SENTIMENT, OCR A VIZUALIZACE PROFILŮ
+ 
+1. Architektura analytického modulu:
+   - Vytvořena nová složka `src/analysis/` jako samostatná analytická vrstva oddělená od scrapingu.
+   - Dva nové moduly: `sentiment.py` (sentiment analýza) a `image_ocr.py` (OCR analýza obrázků).
+   - Nová GUI záložka "Analýza" (`src/gui/frames/analysis.py`) jako centrální ovládací panel pro veškerou analytiku.
+ 
+2. Sentiment analýza komentářů (`src/analysis/sentiment.py`):
+   - Implementována třívrstá pipeline: Preprocessing → Kontextový slovník → VADER.
+   - Preprocessing textu před analýzou:
+     a) Emoji → textový popis pomocí knihovny `emoji` (🆘 → "SOS button", ❤️ → "red heart").
+     b) Hashtagy → čitelná slova pomocí CamelCase splitu a heuristik (#FreeIran → "free iran", #NoDeal → "no deal").
+     c) Odstranění URL a @mentions (nenesou sentiment).
+   - Vrstva 1 — Kontextový slovník (`context_lexicon.json`):
+     - ~150 výrazů v 8 kategoriích: politické osobnosti, dezinformační narativy, bot/spam indikátory, válečná terminologie, íránská specifika, pozitivní solidarita, emoji jako text, CZ/SK/ES výrazy.
+     - Víceslovné fráze mají vyšší váhu než jednoslovné ("stolen election" > "rigged").
+     - Sekce `custom` pro přidávání výrazů za běhu přes `add_to_lexicon()`.
+   - Vrstva 2 — VADER: Lexikální analýza přeloženého textu (detekce jazyka přes `langdetect`, překlad přes `deep-translator`).
+   - Finální skóre: vážený průměr (55 % slovník / 45 % VADER), rozsah -1.0 až +1.0.
+   - Automatická DB migrace: Nové sloupce `sentiment_score`, `sentiment_label`, `sentiment_lang` v tabulce `comments`.
+   - Dvě režimy spuštění: automaticky po každém scrape + manuálně přes GUI tlačítko.
+   - Příklad opravy: "EPSTEIN" → slovník -0.7, VADER 0.0, finál -0.385 → negative ✓
+ 
+3. OCR analýza obrázků (`src/analysis/image_ocr.py`):
+   - Tesseract OCR s pytesseract wrapperem.
+   - Preprocessing obrázků pro zlepšení přesnosti: normalizace barevného módu, zvětšení malých obrázků (min 600px), převod na šedou, zvýšení kontrastu (2×), zostření hran.
+   - Podpora více URL v jednom záznamu (Instagram kolotoče, středník jako separátor).
+   - Filtrování video thumbnail URL (video_thumb, ext_tw_video) — ty neobsahují čitelný text.
+   - Čištění OCR výstupu: odstranění artefaktů, řádků s méně než 2 smysluplnými znaky.
+   - Sentiment analýza extrahovaného textu předána do SentimentAnalyzeru.
+   - Sentinel hodnota "" pro zpracované obrázky bez textu (aby se nepřepracovávaly).
+   - Automatická DB migrace: Nové sloupce `media_text`, `media_sentiment_score`, `media_sentiment_label` v tabulkách `posts` i `comments`.
+   - Podporované jazyky OCR: EN, CS, SK, ES (dle dostupných .traineddata souborů).
+ 
+4. Vizualizace sentimentu na kartách profilů (`src/gui/frames/profiles.py`):
+   - Každá karta profilu rozšířena o sentiment panel (zobrazí se pouze pokud jsou analyzovaná data).
+   - Levá část: Průměrné skóre (+0.234 / -0.512) velkým písmem v barvě výsledku + label + počet komentářů.
+   - Pravá část: Stacked bar — horizontální pruhový graf rozdělený na 3 segmenty (pos/neu/neg).
+     - Implementován čistým tkinter Canvas bez externích grafických knihoven.
+     - Krajní segmenty mají zaoblené rohy, střední jsou hranaté — vizuálně splývají v jeden pruh.
+   - Legenda pod barem: barevná tečka + název + procento + absolutní počet pro každý segment.
+ 
+5. GUI záložka Analýza (`src/gui/frames/analysis.py`):
+   - Panel 1 — Sentiment: Tlačítko spuštění + progress bar + počítadlo.
+   - Panel 2 — OCR: Tři tlačítka (Příspěvky / Komentáře / Vše) + progress bar + živé statistiky zpracování.
+   - Výsledková tabulka: Agregované výsledky per uživatel s barevným kódováním řádků + nový sloupec "OCR textů".
+   - Veškeré operace běží v daemon threadech (GUI neblokuje).
+ 
+6. Nové závislosti přidány do requirements.txt:
+   - `vaderSentiment`, `langdetect`, `deep-translator`, `emoji`, `pytesseract`
+ 
+STAV: Plně funkční analytická vrstva. Komentáře i příspěvky mají sentiment skóre, obrázky jsou OCR analyzovány. Profily zobrazují grafické shrnutí sentimentu přímo na kartě.

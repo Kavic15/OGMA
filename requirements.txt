@@ -5,3 +5,8 @@ pillow
 requests
 playwright-stealth
 playwright
+vaderSentiment
+langdetect
+deep-translator
+emoji
+pytesseract

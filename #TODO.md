@@ -1,106 +1,145 @@
-# TODO: Rozšíření profilů a analytika (X/Twitter)
+# TODO: Ogma — Zbývající funkcionality
 
-## 1. Rozšířená Metadata (Scraping)
-Data nutná získat přímo z profilu uživatele.
-- [ ] **Datum založení účtu (Joined Date)**
-  - *Důvod:* Detekce stáří účtu (rozlišení čerstvých botů vs. etablovaných uživatelů).
-- [ ] **Lokace (Location)**
-  - *Důvod:* Geografické zacílení a ověření relevance.
-- [ ] **Webová stránka (Link in Bio)**
-  - *Důvod:* Most k dalšímu vyšetřování (Linktree, OnlyFans, firemní weby).
-- [ ] **Počet Sledovaných (Following)**
-  - *Důvod:* Analýza poměru Followers vs. Following (detekce spamu vs. celebrit).
-- [ ] **Statické User ID (REST ID)**
-  - *Důvod:* Trvalá identifikace cíle nezávislá na změně @handle.
+---
 
-## 2. Vizuální prvky (GUI)
-Prvky pro vizuální identifikaci na kartě profilu.
-- [ ] **Banner (Header Image)**
-  - *Implementace:* Použít jako pozadí horní části karty (obsahuje další info/loga).
-- [ ] **Status Ověření (Verified / Blue Check)**
-  - *Implementace:* Ikonka vedle jména pro rozlišení oficiálních zdrojů vs. parodií.
+## 1. Odvozená Analytika (Backend výpočty)
+Statistiky počítané z již uložených dat v DB — nevyžadují nový scraping.
 
-## 3. Odvozená Analytika (Backend výpočty)
-Statistiky počítané z uložených příspěvků (bez nutnosti číst text).
 - [ ] **Aktivita v čase (Activity Heatmap)**
-  - *Výstup:* Graf nebo text (např. "Postuje 18:00 - 22:00").
-  - *Cíl:* Určení časového pásma a Pattern of Life.
+  - *Výstup:* Vizuální heatmapa hodin × dní v týdnu, nebo text „Postuje 18:00–22:00"
+  - *Cíl:* Určení časového pásma a Pattern of Life (detekce koordinovaného chování)
+  - *Zdroj dat:* Sloupec `timestamp_posted` v tabulce `posts`
+
 - [ ] **Nejpoužívanější Hashtagy**
-  - *Logika:* Top 5 hashtagů z posledních 50 příspěvků.
-  - *Cíl:* Rychlá identifikace témat profilu.
+  - *Logika:* Regex extrakce `#\w+` z `text_content`, top 5 z posledních N příspěvků
+  - *Cíl:* Rychlá identifikace témat a narativů profilu
+
 - [ ] **Nejčastější zmínky (Mentions)**
-  - *Logika:* Statistika nejčastěji označovaných @uživatelů.
-  - *Cíl:* Mapování sociální bubliny a vazeb.
-- [ ] **Poměr témat (Word Cloud)**
-  - *Logika:* 5 nejčastějších slov (po vyloučení stop-slov/spojek).
+  - *Logika:* Regex extrakce `@\w+` z `text_content` příspěvků i komentářů
+  - *Cíl:* Mapování sociální bubliny a klíčových vazeb
 
-## 4. Technické "Flagy" (Auto-tagging)
-Automatické štítky na základě splněných podmínek.
+- [ ] **Poměr témat (Word Cloud / Top slova)**
+  - *Logika:* Tokenizace textu, vyloučení stop-slov, top 10–20 slov
+  - *Knihovny:* `wordcloud` + `matplotlib` nebo čistý výpis v GUI
+  - *Cíl:* Rychlý přehled hlavních témat profilu
+
+---
+
+## 2. Technické "Flagy" (Auto-tagging profilů)
+Automatické štítky přiřazované profilům na základě splněných podmínek.
+
 - [ ] **Tag: "Meme Warfare"**
-  - *Podmínka:* >50 % příspěvků obsahuje obrázek bez textu.
+  - *Podmínka:* >50 % příspěvků má `media_url` ale prázdný `text_content`
+
 - [ ] **Tag: "New Account"**
-  - *Podmínka:* Účet založen před méně než 1 měsícem.
+  - *Podmínka:* `joined_date` před méně než 30 dny od data scrape
+
 - [ ] **Tag: "High Impact"**
-  - *Podmínka:* Průměrně > 1000 lajků na post.
+  - *Podmínka:* Průměrně >1 000 lajků na příspěvek
 
-# TODO: Ogma - Advanced Anti-Detect & Profile Management
+- [ ] **Tag: "Bot Suspect"** *(nový návrh)*
+  - *Podmínka:* Kombinace — nový účet + vysoký following/followers poměr + časté opakující se hashtagy
 
-## 1. Správa Identit a Profilů (Identity Management)
-Cíl: Každý profil musí vypadat jako unikátní zařízení s trvalou historií.
-- [ ] **User-Agent Persistence**
-  - *Implementace:* Uložit string `user_agent` do `users.json`. Při startu `BaseBot` vynutit tento UA namísto defaultního z Chromia.
-  - *Pravidlo:* Profil nesmí měnit OS/Browser verze mezi relacemi.
+- [ ] **Uložení flagů do DB**
+  - *Schema:* Nový sloupec `flags` (JSON pole) v tabulce `users`
+  - *GUI:* Zobrazení tagů jako barevné badges na kartě profilu
+
+---
+
+## 3. Vizualizace dat
+Grafické výstupy pro analýzu a prezentaci v diplomové práci.
+
+- [ ] **Activity Heatmap graf**
+  - *Knihovna:* `matplotlib` embedded v GUI (CTkFrame s canvas)
+  - *Výstup:* Matice 24h × 7 dní s intenzitou aktivity
+
+- [ ] **Síťový graf (Network Graph)**
+  - *Knihovna:* `networkx` + `matplotlib`
+  - *Data:* Tabulka `connections` (followers/following)
+  - *Cíl:* Vizualizace vztahů mezi profily, detekce clusterů
+
+- [ ] **Sentiment v čase**
+  - *Graf:* Liniový graf sentiment_score příspěvků/komentářů na časové ose
+  - *Cíl:* Identifikace událostí které způsobily nárůst negativního sentimentu
+
+- [ ] **Export grafů**
+  - *Formát:* PNG/PDF pro použití v diplomové práci
+
+---
+
+## 4. Export dat
+
+- [ ] **Export do CSV / XLSX**
+  - *Knihovna:* `pandas`
+  - *Obsah:* Uživatelé, příspěvky, komentáře, sentiment skóre
+  - *GUI:* Tlačítko "Exportovat" v záložce Databáze
+
+- [ ] **Export reportu (PDF)**
+  - *Obsah:* Shrnutí profilu — metadata, sentiment statistiky, top hashtagy, flagy
+  - *Cíl:* Přímý výstup pro prezentaci nebo přílohu diplomové práce
+
+---
+
+## 5. Rozšíření scrapingu
+
+- [ ] **Statické User ID (REST ID) pro X**
+  - *Důvod:* Trvalá identifikace nezávislá na změně @handle
+  - *Zdroj:* GraphQL response při načítání profilu
+
+- [ ] **Podpora dalších platforem**
+  - *Kandidáti:* Facebook (veřejné stránky), Telegram (veřejné kanály)
+  - *Priorita:* Nízká — IG a X pokrývají jádro práce
+
+---
+
+## 6. Anti-Detect & Profile Management
+
+- [ ] **User-Agent Persistence per profil**
+  - *Implementace:* Uložit `user_agent` do `users.json`, vynutit při startu BaseBot
+  - *Pravidlo:* Profil nesmí měnit OS/Browser verzi mezi relacemi
+
 - [ ] **Konzistence rozlišení okna (Viewport)**
-  - *Implementace:* Uložit a vynutit fixní `window_size` pro každý profil.
-- [ ] **Health Check Profilu**
-  - *Funkce:* Rychlý test po startu: "Jsem přihlášen?", "Je účet zamčený/shadowbanovaný?".
-  - *Akce:* Pokud fail -> update status v DB, nezačínat těžbu.
+  - *Implementace:* Fixní `window_size` per profil uložený v `users.json`
 
-## 2. Síťová vrstva a Proxy (Network Layer)
-Cíl: Eliminace rizika hromadného IP banu.
-- [ ] **Podpora Proxy per Profil**
-  - *Config:* Do `users.json` přidat pole `proxy_url` (formát `http://user:pass@ip:port`).
-- [ ] **Proxy Middleware v BaseBot**
-  - *Implementace:* Injektovat proxy nastavení do `ChromiumOptions` při startu instance.
-- [ ] **IP Leak Protection**
-  - *Metoda:* Vypnutí WebRTC nebo konfigurace DrissionPage argumentů tak, aby nepropouštěly reálnou IP.
-- [ ] **Rotace Mobilních Proxy (Volitelné)**
-  - *Logika:* Integrace API pro reset IP (pokud se používají 4G/5G modemy) před startem session.
+- [ ] **Health Check profilu při startu**
+  - *Funkce:* "Jsem přihlášen?", "Je účet shadowbanovaný?"
+  - *Akce:* Při fail → update `account_status` v DB, přeskočit těžbu
 
-## 3. Fingerprinting & Anti-Detect
-Cíl: Maskování automatizace na úrovni prohlížeče a hardwaru.
+- [ ] **Podpora Proxy per profil**
+  - *Config:* Pole `proxy_url` v `users.json` (formát `http://user:pass@ip:port`)
+  - *Implementace:* Injekce do Playwright `launch_persistent_context`
+
 - [ ] **Canvas & WebGL Noise**
-  - *Implementace:* JS injection při startu stránky. Jemné "zašumění" vykreslování pro unikátní, ale konzistentní fingerprint.
+  - *Implementace:* JS injection — jemné zašumění pro unikátní fingerprint per profil
+
 - [ ] **AudioContext Fingerprint**
-  - *Implementace:* Jemná modifikace audio stacku (podobně jako u grafiky).
-- [ ] **Skrytí automatizace (Stealth Mode)**
-  - *Check:* Ověřit `navigator.webdriver = false`. Skrýt příznaky Selenium/Puppeteer (headless detekce).
-- [ ] **Font Enumeration**
-  - *Implementace:* Omezit nebo mírně upravit sadu viditelných systémových fontů pro každý profil.
+  - *Implementace:* Modifikace audio stacku v `_apply_stealth_scripts()`
 
-## 4. Zahřívání Účtů (Account Warming Strategy)
-Cíl: Simulace lidského chování pro zvýšení "trust score" účtu.
+- [ ] **Font Enumeration Masking**
+  - *Implementace:* Omezení viditelné sady systémových fontů
+
+---
+
+## 7. Account Warming (Zahřívání účtů)
+
 - [ ] **Modul WarmupBot**
-  - *Chování:* Netěží data. Jde na Home Feed, náhodně scrolluje, rozklikává média.
-  - *Interakce:* Low-risk like (1-3x za session).
-- [ ] **Scénář "Ztracený uživatel"**
-  - *Sekvence:* Profil -> Followers -> Random profil -> Čtení Bio -> Exit.
-- [ ] **Simulace čtení (Human Reading Speed)**
-  - *Logika:* Zastavit scroll u dlouhých textů na dobu odpovídající cca 200 slovům za minutu.
+  - *Chování:* Scrollování home feedu, náhodné rozklikávání médií, 1–3 lajky za session
+  - *Cíl:* Zvýšení „trust score" před spuštěním scrape
 
-## 5. Plánování a Časování (Scheduler)
-Cíl: Přirozené rozložení aktivity v čase.
-- [ ] **Pracovní doba profilu (Timezone Awareness)**
-  - *Logika:* Virtuální časové pásmo pro profil. Zákaz aktivity v "hluboké noci" daného pásma.
-- [ ] **Úloha "Random Activity"**
-  - *Scheduler:* Náhodné spouštění `WarmupBot` (5-15 min) v průběhu dne.
-- [ ] **Rozložení zátěže (Load Balancing)**
-  - *Queue:* Netěžit se všemi profily naráz v celou hodinu. Fronta s náhodnými odstupy (jitter).
+- [ ] **Simulace rychlosti čtení**
+  - *Logika:* Pauza u dlouhých textů odpovídající ~200 slovům za minutu
 
-## 6. Databáze a Logování
-Cíl: Monitoring zdraví profilů a prevence rate-limitů.
-- [ ] **Historie akcí (Rate Limiting)**
-  - *Metrika:* Logovat počet requestů, liků, scrollů za 24h.
-  - *Limit:* Pokud se blíží limitu, odstavit profil na 24h (Cooldown).
-- [ ] **Stav Profilu**
-  - *DB Schema:* Sloupec `account_status` (hodnoty: `Active`, `Cooldown`, `Banned`, `Login Required`).
+- [ ] **Scheduler — pracovní doba profilu**
+  - *Logika:* Virtuální timezone per profil, zákaz aktivity v „hluboké noci"
+
+---
+
+## 8. Databáze a Monitoring
+
+- [ ] **Historie akcí a Rate Limiting**
+  - *Metrika:* Logovat počet requestů, scrollů za 24h
+  - *Limit:* Při překročení → Cooldown 24h
+
+- [ ] **Sloupec `account_status` v tabulce `users`**
+  - *Hodnoty:* `Active`, `Cooldown`, `Banned`, `Login Required`
+  - *GUI:* Barevný indikátor na kartě profilu

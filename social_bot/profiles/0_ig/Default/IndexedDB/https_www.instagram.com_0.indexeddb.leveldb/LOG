@@ -1,7 +1,0 @@
-2026/03/10-11:54:51.015 5760 Reusing MANIFEST C:\Ogma\social_bot\profiles\0_ig\Default\IndexedDB\https_www.instagram.com_0.indexeddb.leveldb/MANIFEST-000001
-2026/03/10-11:54:51.016 5760 Recovering log #3
-2026/03/10-11:54:51.036 5760 Reusing old log C:\Ogma\social_bot\profiles\0_ig\Default\IndexedDB\https_www.instagram.com_0.indexeddb.leveldb/000003.log 
-2026/03/10-12:38:45.301 39cc Level-0 table #5: started
-2026/03/10-12:38:45.312 39cc Level-0 table #5: 1024732 bytes OK
-2026/03/10-12:38:45.314 39cc Delete type=0 #3
-2026/03/10-12:38:45.314 39cc Manual compaction at level-0 from (begin) .. (end); will stop at (end)

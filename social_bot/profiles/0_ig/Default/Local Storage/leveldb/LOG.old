@@ -1,6 +1,0 @@
-2026/02/28-18:13:32.256 85c8 Reusing MANIFEST C:\Ogma\social_bot\profiles\0_ig\Default\Local Storage\leveldb/MANIFEST-000001
-2026/02/28-18:13:32.268 85c8 Recovering log #24
-2026/02/28-18:13:32.273 85c8 Reusing old log C:\Ogma\social_bot\profiles\0_ig\Default\Local Storage\leveldb/000024.log 
-2026/02/28-18:16:33.229 6810 Level-0 table #27: started
-2026/02/28-18:16:33.243 6810 Level-0 table #27: 17304 bytes OK
-2026/02/28-18:16:33.246 6810 Delete type=0 #24

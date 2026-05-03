@@ -1,3 +1,6 @@
+metriky: kolik to žere dat, rychlost scrapu (porovnání platforem), automatizace (jenom updaty), youtube
+
+
 # TODO: Ogma — Zbývající funkcionality
 
 ---
@@ -143,3 +146,5 @@ Grafické výstupy pro analýzu a prezentaci v diplomové práci.
 - [ ] **Sloupec `account_status` v tabulce `users`**
   - *Hodnoty:* `Active`, `Cooldown`, `Banned`, `Login Required`
   - *GUI:* Barevný indikátor na kartě profilu
+
+## 9. 

@@ -3,8 +3,8 @@ from .auth import InstagramAuthenticator
 from .scraper import InstagramScraper
 
 class InstagramBot(BaseBot):
-    def __init__(self, username, password, user_id="default"):
-        super().__init__(user_id=user_id, platform="ig") 
+    def __init__(self, username, password, user_id="default", headless=True):
+        super().__init__(user_id=user_id, platform="ig", headless=headless)
         self.username = username
         self.password = password
         

@@ -10,3 +10,6 @@ langdetect
 deep-translator
 emoji
 pytesseract
+wordcloud
+matplotlib
+psutil

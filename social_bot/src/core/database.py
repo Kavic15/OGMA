@@ -21,7 +21,7 @@ class DatabaseManager:
         self._migrate_db() # Důležité: Přidá nové sloupce do existující DB
 
     def _connect(self):
-        self.conn = sqlite3.connect(str(self.db_path), timeout=10) 
+        self.conn = sqlite3.connect(str(self.db_path), timeout=10, check_same_thread=False)
         self.cursor = self.conn.cursor()
 
     def _create_tables(self):
@@ -35,13 +35,13 @@ class DatabaseManager:
                 display_name TEXT,
                 bio TEXT,
                 followers_count INTEGER,
-                following_count INTEGER,       -- NOVÉ
-                joined_date TEXT,              -- NOVÉ
-                location TEXT,                 -- NOVÉ
-                website TEXT,                  -- NOVÉ
-                is_verified INTEGER DEFAULT 0, -- NOVÉ (Bonus)
+                following_count INTEGER,
+                joined_date TEXT,
+                location TEXT,
+                website TEXT, 
+                is_verified INTEGER DEFAULT 0,
                 profile_pic_url TEXT, 
-                banner_url TEXT,               -- NOVÉ (Bonus)
+                banner_url TEXT,
                 last_scraped TIMESTAMP,
                 UNIQUE(platform, username)
             )
@@ -108,6 +108,23 @@ class DatabaseManager:
                 connection_type TEXT NOT NULL,
                 scraped_at TIMESTAMP,
                 UNIQUE(platform, source_username, target_username, connection_type)
+            )
+        ''')
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS watchlist (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                platform        TEXT    NOT NULL DEFAULT 'IG',
+                username        TEXT    NOT NULL,
+                interval_min    INTEGER NOT NULL DEFAULT 20,
+                limit_posts     INTEGER NOT NULL DEFAULT 10,
+                limit_comments  INTEGER NOT NULL DEFAULT 50,
+                limit_followers INTEGER NOT NULL DEFAULT 0,
+                limit_following INTEGER NOT NULL DEFAULT 0,
+                enabled         INTEGER NOT NULL DEFAULT 1,
+                last_scraped_at TEXT,
+                next_scrape_at  TEXT,
+                added_at        TEXT    NOT NULL DEFAULT (datetime('now')),
+                UNIQUE(platform, username)
             )
         ''')
         self.conn.commit()
@@ -181,6 +198,13 @@ class DatabaseManager:
         
         self.conn.commit()
         return user_id
+    
+    def post_exists(self, platform_post_id: str) -> bool:
+        self.cursor.execute(
+            "SELECT 1 FROM posts WHERE platform_post_id = ?",
+            (platform_post_id,)
+        )
+        return self.cursor.fetchone() is not None
 
     def upsert_post(self, user_id, platform, platform_post_id, text_content, timestamp_posted, likes_count=0, shares_count=0, comments_count=0, url=None, media_url=None):
         now = datetime.now(timezone.utc).isoformat()

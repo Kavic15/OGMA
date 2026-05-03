@@ -345,3 +345,21 @@ class ImageOCRAnalyzer:
             f"Text nalezen: {found_text} | Bez textu: {processed - found_text}"
         )
         return processed
+
+
+    def analyze_pending_both(self, callback=None) -> tuple:
+        """
+        Spustí OCR nad příspěvky i komentáři.
+        callback(current, total, phase) — volitelné; phase='posts'|'comments'.
+        Vrátí (n_posts, n_comments).
+        """
+        print("[OCR] === Fáze A: příspěvky ===")
+        posts_cb = (lambda c, t: callback(c, t, "posts")) if callback else None
+        n_posts = self.analyze_pending_posts(callback=posts_cb)
+
+        print("[OCR] === Fáze B: komentáře ===")
+        comments_cb = (lambda c, t: callback(c, t, "comments")) if callback else None
+        n_comments = self.analyze_pending_comments(callback=comments_cb)
+
+        print(f"[OCR] Celkem — příspěvky: {n_posts} | komentáře: {n_comments}")
+        return n_posts, n_comments

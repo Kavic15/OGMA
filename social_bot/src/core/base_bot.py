@@ -4,7 +4,7 @@ from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeo
 from src.utils.human_input import delay
 
 class BaseBot:
-    def __init__(self, headless=False, user_id="default", platform="general"):
+    def __init__(self, headless=True, user_id="default", platform="general"):
         self.user_id = str(user_id)
         self.platform = platform
         
@@ -40,10 +40,7 @@ class BaseBot:
             )
             
             page = self.context.pages[0] if self.context.pages else self.context.new_page()
-            
-            # Aplikace vlastních anti-detekčních skriptů (nahrazuje playwright-stealth)
             self._apply_stealth_scripts(page)
-            
             return page
             
         except Exception as e:
@@ -53,12 +50,8 @@ class BaseBot:
             raise e
 
     def _apply_stealth_scripts(self, page):
-        """Aplikuje základní anti-detekční skripty přímo přes Playwright."""
-        # Skrytí příznaku botnetu
         page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        # Falešné pluginy (často kontrolováno Instagramem a X)
         page.add_init_script("Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3]})")
-        # Falešné jazyky
         page.add_init_script("Object.defineProperty(navigator, 'languages', {get: () => ['cs-CZ', 'cs', 'en-US', 'en']})")
 
     def open_url(self, url):
@@ -93,18 +86,52 @@ class BaseBot:
                 except:
                     pass
         return False
-        
+
     def handle_popups(self, triggers):
+        """
+        Klikne na první viditelné tlačítko/odkaz jehož text přesně odpovídá
+        některému z řetězců v `triggers`.
+
+        Rozdíl oproti původní verzi:
+          - Hledáme konkrétně <button> nebo <a> elementy (ne libovolný text na stránce),
+            čímž se vyhneme trefení textu v dropdownech nebo popisných odstavcích.
+          - Po úspěšném kliknutí čekáme až dialog zmizí z DOM (max 5 s),
+            teprve pak vrátíme True — volající kód tak dostane stránku bez překrytí.
+        """
+        # CSS selektor omezený na interaktivní prvky
+        BUTTON_SELECTOR = "button, a[role='button'], a"
+
         for text in triggers:
             try:
-                locator = self.page.get_by_text(text, exact=False).first
-                if locator.is_visible(timeout=500):
-                    locator.click(force=True)
-                    print(f"[BOT] Odkliknuto vyskakovací okno: '{text}'")
-                    delay(1)
-                    return True
-            except:
-                pass
+                # Filtrujeme: interaktivní prvek, jehož viditelný text obsahuje hledaný řetězec
+                locator = self.page.locator(BUTTON_SELECTOR).filter(has_text=text).first
+                if not locator.is_visible(timeout=1500):
+                    continue
+
+                # Ověříme že jde skutečně o tlačítko (ne náhodný odkaz s podobným textem)
+                tag = locator.evaluate("el => el.tagName.toLowerCase()")
+                role = locator.get_attribute("role") or ""
+                el_text = (locator.inner_text() or "").strip()
+
+                # Přijmeme pouze pokud text odpovídá celému tlačítku (ne jen části dlouhého textu)
+                if len(el_text) > len(text) * 3:
+                    continue  # příliš dlouhý text → pravděpodobně špatný element
+
+                locator.click(force=True)
+                print(f"[BOT] Odkliknuto vyskakovací okno: '{text}'")
+
+                # Počkáme až element zmizí (dialog se zavřel)
+                try:
+                    locator.wait_for(state="hidden", timeout=5000)
+                except Exception:
+                    pass  # nevadí — pokud už zmizel, timeout je OK
+
+                delay(1.5, 2.5)  # extra pauza pro překreslení stránky
+                return True
+
+            except Exception:
+                continue
+
         return False
 
     def close(self):

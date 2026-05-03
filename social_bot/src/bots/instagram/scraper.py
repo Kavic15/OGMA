@@ -40,6 +40,10 @@ class InstagramScraper:
 
     def scrape_post_and_comments(self, db_user_id, post_url, comments_limit=50):
         print(f"\n  -> [IG-SCRAPER] Otevírám příspěvek: {post_url}")
+        post_id = post_url.rstrip("/").split("/")[-1]
+        if self.db.post_exists(post_id):
+            print(f"  -> [SKIP] Příspěvek {post_id} již existuje, přeskakuji.")
+            return
         self.bot.open_url(post_url)
         delay(3, 5)
 
@@ -593,19 +597,32 @@ class InstagramScraper:
 
     def _scrape_network(self, username, limit, mode):
         if limit <= 0: return
-        
+
         conn_type = "follower" if mode == "followers" else "following"
         type_cs = "Sledujících" if mode == "followers" else "Sledovaných"
         print(f"\n[IG-NETWORK] --- Těžba {type_cs} pro @{username} (Limit: {limit}) ---")
-        
+
         try:
             if f"/{username}/" not in self.bot.page.url:
                 self.bot.open_url(f"{self.bot.base_url}{username}/")
                 delay(2, 4)
 
+            # Zavři případný zbývající dialog
+            try:
+                if self.bot.page.locator('div[role="dialog"]').is_visible(timeout=1000):
+                    self.bot.page.keyboard.press("Escape")
+                    self.bot.page.locator('div[role="dialog"]').wait_for(state="hidden", timeout=4000)
+                    delay(1, 2)
+            except:
+                pass
+
+            # Scrollni na vrchol stránky
+            self.bot.page.evaluate("window.scrollTo(0, 0)")
+            delay(0.5, 1)
+
             link = self.bot.page.locator(f'header a[href*="/{mode}/"]').first
             if link.is_visible(timeout=5000):
-                link.click()
+                link.evaluate("el => el.click()")  # JS klik — obchází intercept
             else:
                 print(f"[IG-NETWORK] Tlačítko {type_cs} nebylo nalezeno.")
                 return
@@ -620,9 +637,11 @@ class InstagramScraper:
 
         collected = 0
         processed = set()
-        scroll_attempts = 0
+        no_new_streak = 0
+        MAX_NO_NEW = 6  # kolik kol bez nových uživatelů než skončíme
+        max_loops = max(limit * 3, 60)  # bezpečnostní strop
 
-        # JS injekce zaměřená čistě na izolované posouvání uvnitř Modalu
+        # JS: extrahuje usernames a scrolluje NEJVĚTŠÍ scrollovatelný div v dialogu
         js_extract = """
         () => {
             let dialog = document.querySelector('div[role="dialog"]');
@@ -632,31 +651,41 @@ class InstagramScraper:
             let links = dialog.querySelectorAll('a[href]');
             for (let a of links) {
                 let href = a.getAttribute('href');
-                if (href && href.startsWith('/') && href.split('/').length === 3) {
+                if (href && href.startsWith('/') && href.split('/').filter(Boolean).length === 1) {
                     let un = href.replace(/\\//g, '');
-                    if (un && !['explore', 'reels', 'direct', 'stories'].includes(un)) {
+                    if (un && !['explore','reels','direct','stories','p','tv'].includes(un)) {
                         users.push(un);
                     }
                 }
             }
 
-            let scrolled = false;
+            // Najdi scrollovatelný div s NEJVĚTŠÍM scrollHeight (= seznam uživatelů)
+            let bestDiv = null;
+            let bestScrollHeight = 0;
             let divs = dialog.querySelectorAll('div');
             for (let d of divs) {
                 let style = window.getComputedStyle(d);
-                if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
-                    if (d.scrollHeight > d.clientHeight + 10) {
-                        d.scrollTop += 600; 
-                        scrolled = true;
-                        break;
-                    }
+                if ((style.overflowY === 'auto' || style.overflowY === 'scroll')
+                    && d.scrollHeight > d.clientHeight + 10
+                    && d.scrollHeight > bestScrollHeight) {
+                    bestScrollHeight = d.scrollHeight;
+                    bestDiv = d;
                 }
             }
+
+            let scrolled = false;
+            if (bestDiv) {
+                bestDiv.scrollTop += 600;
+                scrolled = true;
+            }
+
             return {users: [...new Set(users)], scrolled: scrolled};
         }
         """
 
-        while collected < limit and scroll_attempts < 10:
+        loop = 0
+        while collected < limit and no_new_streak < MAX_NO_NEW and loop < max_loops:
+            loop += 1
             try:
                 data = self.bot.page.evaluate(js_extract)
                 new_found = False
@@ -664,26 +693,30 @@ class InstagramScraper:
                 for target_user in data.get('users', []):
                     if target_user == username: continue
                     if collected >= limit: break
-
                     if target_user not in processed:
                         processed.add(target_user)
                         new_found = True
                         self.db.upsert_connection("IG", username, target_user, conn_type)
                         collected += 1
-                        print(f"  -> Uložen záznam ({conn_type}): @{target_user} ({collected}/{limit})")
+                        print(f"  -> ({conn_type}): @{target_user} ({collected}/{limit})")
 
-                if not new_found: scroll_attempts += 1
-                else: scroll_attempts = 0
+                if not new_found:
+                    no_new_streak += 1
+                else:
+                    no_new_streak = 0
 
                 delay(1.5, 3.0)
+
             except Exception as e:
                 print(f"[IG-NETWORK] Chyba při těžbě modal okna: {e}")
                 break
 
-        print(f"[IG-NETWORK] Těžba {type_cs} dokončena.")
-        
+        print(f"[IG-NETWORK] Těžba {type_cs} dokončena. Sesbíráno: {collected}/{limit}")
+
         try:
-            close_btn = self.bot.page.locator('div[role="dialog"] button, css:svg[aria-label="Zavřít"], css:svg[aria-label="Close"]').first
-            if close_btn.is_visible(timeout=1000): close_btn.click(force=True)
-            delay(1)
-        except: pass
+            self.bot.page.keyboard.press("Escape")
+            delay(1.5, 2.5)
+            # Počkej až dialog zmizí
+            self.bot.page.locator('div[role="dialog"]').wait_for(state="hidden", timeout=5000)
+        except:
+            pass

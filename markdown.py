@@ -1,8 +1,20 @@
 import os
 
 # Konfigurace - uprav podle potřeby
-EXCLUDE_DIRS = {'.git', 'venv', '.venv', '__pycache__', '.idea', '.vscode'}
-EXCLUDE_FILES = {'projekt_pro_ai.md', '.gitignore', 'users.json', 'markdown.py', 'diary.txt', 'pozn.txt', 'top50.txt', 'topCZ.txt', 'html.html','pozn.txt'}
+
+# BASIC)
+EXCLUDE_DIRS = {'.git', 'profiles', 'venv', '.venv', '__pycache__', '.idea', '.vscode',}
+
+# BEZ IG
+# EXCLUDE_DIRS = {'.git', 'profiles', 'venv', '.venv', '__pycache__', '.idea', '.vscode', 'instagram'}
+
+# BEZ X
+# EXCLUDE_DIRS = {'.git', 'profiles', 'venv', '.venv', '__pycache__', '.idea', '.vscode', 'x'}
+
+# BEZ GUI
+# EXCLUDE_DIRS = {'.git', 'profiles', 'venv', '.venv', '__pycache__', '.idea', '.vscode', 'gui'}
+
+EXCLUDE_FILES = {'projekt_pro_ai.md', '__init__.py', 'test_profile.py', '.gitignore', 'users.json', 'markdown.py', 'diary.txt', 'pozn.txt', 'top50.txt', 'topCZ.txt', 'html.html', 'pozn.txt'}
 EXTENSIONS = {'.py', '.txt', '.yaml', '.yml', '.sql', '.html', '.css'}
 
 def project_to_markdown(output_file):

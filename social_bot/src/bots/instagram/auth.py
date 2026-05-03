@@ -17,7 +17,10 @@ class InstagramAuthenticator:
             pass
 
         print("[IG] Kontroluji Cookies okna...")
-        cookie_keywords = ['Povolit', 'Odmítnout', 'Allow', 'Decline']
+        cookie_keywords = [
+            'Povolit', 'Odmítnout', 'Allow', 'Decline', 
+            'Pustit se do toho', 'Get started', 'Přijmout', 'Accept'
+        ]
         for word in cookie_keywords:
             try:
                 btn = self.bot.page.get_by_text(word, exact=False).first
@@ -74,5 +77,8 @@ class InstagramAuthenticator:
         delay(5, 8)
         
         print("[IG] Provádím úklid po přihlášení...")
-        self.bot.handle_popups(['Nyní ne', 'Not Now', 'Uložit', 'Save'])
+        self.bot.handle_popups([
+            'Nyní ne', 'Not Now', 'Uložit', 'Save', 
+            'Pustit se do toho', 'Get started'
+        ])
         print("[IG] Přihlašovací proces dokončen.")

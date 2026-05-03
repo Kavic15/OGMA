@@ -1,5 +1,899 @@
-## Soubor: requirements.txt
-```txt
+file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+__init__.py
+.gitattributes
+.gitignore
+#DONE.md
+#TODO.md
+diary.txt
+html.html
+markdown.py
+pozn.txt
+requirements.txt
+social_bot/main.py
+social_bot/src/analysis/__init__.py
+social_bot/src/analysis/context_lexicon.json
+social_bot/src/analysis/image_ocr.py
+social_bot/src/analysis/sentiment.py
+social_bot/src/analysis/text_stats.py
+social_bot/src/bots/instagram/__init__.py
+social_bot/src/bots/instagram/auth.py
+social_bot/src/bots/instagram/bot.py
+social_bot/src/bots/instagram/scraper.py
+social_bot/src/bots/x/__init__.py
+social_bot/src/bots/x/auth.py
+social_bot/src/bots/x/bot.py
+social_bot/src/bots/x/modules/__init__.py
+social_bot/src/bots/x/modules/comments.py
+social_bot/src/bots/x/modules/network.py
+social_bot/src/bots/x/modules/posts.py
+social_bot/src/bots/x/modules/profile.py
+social_bot/src/bots/x/modules/search.py
+social_bot/src/bots/x/modules/utils.py
+social_bot/src/bots/x/scraper.py
+social_bot/src/bots/youtube/bot.py
+social_bot/src/bots/youtube/scraper.py
+social_bot/src/core/base_bot.py
+social_bot/src/core/database.py
+social_bot/src/core/session_logger.py
+social_bot/src/core/watchlist_scheduler.py
+social_bot/src/gui/app.py
+social_bot/src/gui/browser_preview.py
+social_bot/src/gui/db_viewer.py
+social_bot/src/gui/frames/__init__.py
+social_bot/src/gui/frames/analysis.py
+social_bot/src/gui/frames/dashboard.py
+social_bot/src/gui/frames/database.py
+social_bot/src/gui/frames/metrics.py
+social_bot/src/gui/frames/profiles.py
+social_bot/src/gui/frames/sessions.py
+social_bot/src/gui/frames/watchlist.py
+social_bot/src/gui/ogma_ai_logo.ico
+social_bot/src/gui/ogma_ai_logo.png
+social_bot/src/gui/ogma_ai_logo.svg
+social_bot/src/gui/theme.py
+social_bot/src/gui/utils.py
+social_bot/src/utils/human_input.py
+social_bot/test_profile.py
+top50.txt
+topCZ.txt
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="__init__.py">
+
+</file>
+
+<file path=".gitattributes">
+# Auto detect text files and perform LF normalization
+* text=auto
+</file>
+
+<file path=".gitignore">
+social_bot/identity/users.json
+social_bot/data
+social_bot/browser/
+social_bot/profiles/
+projekt_pro_ai.md
+</file>
+
+<file path="#DONE.md">
+# DONE: Ogma — Implementované funkcionality
+
+---
+
+## Sběr dat (Scraping)
+
+### Instagram
+- [x] **Přihlášení a správa session** — `src/bots/instagram/auth.py`
+  - Detekce existující session, cookies handling, submit formuláře
+- [x] **Scraping profilu** — `src/bots/instagram/scraper.py`
+  - Username, display name, bio, followers, following, web, verifikace, profilová fotka
+- [x] **Scraping příspěvků** — vč. podpory kolotočů (více fotek), videí, reels
+  - Lajky, komentáře, timestamp, media URL, text obsahu
+- [x] **Scraping komentářů** — s limitem, scrollování, de-duplikace
+- [x] **Scraping followers / following sítě**
+  - Ukládání do tabulky `connections`
+- [x] **Vyhledávání profilu** — přes interní našeptávač + direct URL fallback
+
+### X / Twitter
+- [x] **Přihlášení a správa session** — `src/bots/x/auth.py`
+  - Detekce session, dvoukrokový login (username → heslo)
+- [x] **Scraping profilu** — `src/bots/x/modules/profile.py`
+  - Username, display name, bio, followers, following, lokace, web, datum založení, verifikace, HD profilová fotka, banner
+- [x] **Scraping příspěvků (timeline)** — `src/bots/x/modules/posts.py`
+  - Text, timestamp, lajky, retweety, komentáře, media URL
+  - Detekce a extrakce MP4 stream URL pro videa (network sniffer)
+- [x] **Scraping komentářů** — `src/bots/x/modules/comments.py`
+  - Včetně Fáze 4: extrakce MP4 z video-komentářů
+- [x] **Scraping followers / following sítě** — `src/bots/x/modules/network.py`
+- [x] **Scraping trendů** — `src/bots/x/scraper.py → scrape_trending()`
+- [x] **Vyhledávání profilu** — `src/bots/x/modules/search.py`
+  - 3 kroky: lokální DB cache → interní X hledání → Google fallback
+
+---
+
+## Databáze
+
+- [x] **SQLite databáze** — `src/core/database.py`
+- [x] **Tabulky:** `users`, `posts`, `comments`, `trending`, `connections`
+- [x] **Upsert logika** — žádné duplikáty, aktualizace stávajících záznamů
+- [x] **Automatická migrace** — přidání nových sloupců do existující DB bez ztráty dat
+- [x] **Rozšířená metadata uživatelů:**
+  - `following_count`, `joined_date`, `location`, `website`, `is_verified`, `profile_pic_url`, `banner_url`
+
+---
+
+## Analytika
+
+### Sentiment analýza
+- [x] **Dvouvrstvá sentiment analýza** — `src/analysis/sentiment.py`
+  - Vrstva 1: Kontextový slovník (`context_lexicon.json`) — doménové výrazy informační války
+  - Vrstva 2: VADER — lexikální analýza
+  - Vážený průměr (55 % slovník / 45 % VADER)
+- [x] **Preprocessing textu před analýzou**
+  - Emoji → textový popis (knihovna `emoji`)
+  - Hashtagy → slova (`#FreeIran` → `free iran`, `#NoDeal` → `no deal`)
+  - Odstranění URL a @mentions
+- [x] **Detekce jazyka** (`langdetect`) + překlad do EN (`deep-translator`)
+- [x] **Kontextový slovník** — `src/analysis/context_lexicon.json`
+  - ~150 výrazů v kategoriích: politické osobnosti, dezinformační narativy, bot/spam, válečná terminologie, solidarita, emoji jako text, CZ/SK/ES specifika
+  - Sekce `custom` pro rozšiřování za běhu
+- [x] **Hromadná analýza** `analyze_pending()` + **jednorázová** `analyze_single()`
+- [x] **Statistiky per uživatel** `get_stats_for_user()`
+- [x] **Rozšíření slovníku za běhu** `add_to_lexicon()`
+- [x] **Nové sloupce v DB:** `sentiment_score`, `sentiment_label`, `sentiment_lang`
+
+### OCR analýza obrázků
+- [x] **Tesseract OCR** — `src/analysis/image_ocr.py`
+  - Preprocessing obrázků (zvětšení, kontrast, zostření)
+  - Podpora více URL (Instagram kolotoče, `;` separátor)
+  - Filtrování video thumbnail URL
+  - Čištění OCR výstupu (artefakty, šum)
+- [x] **Sentiment extrahovaného textu z obrázků**
+- [x] **Hromadné zpracování** — příspěvky i komentáře zvlášť
+- [x] **Nové sloupce v DB:** `media_text`, `media_sentiment_score`, `media_sentiment_label`
+
+---
+
+## GUI
+
+- [x] **Hlavní okno** — `src/gui/app.py` (CustomTkinter, dark mode)
+- [x] **Sidebar navigace** — Dashboard, Profily, Databáze, Analýza
+- [x] **Dashboard** — `src/gui/frames/dashboard.py`
+  - Výběr identity bota, cílové účty (batch, čárkou oddělené)
+  - Limity: příspěvky, komentáře, followers, following
+  - Tlačítka: IG login, IG scrape, X login, X scrape, trendy, STOP
+  - Live log (stdout redirect), progress bar
+- [x] **Záložka Profily** — `src/gui/frames/profiles.py`
+  - Karty profilů s avatarem, jménem, handle, verifikací, followers/following, bio, metadaty
+  - Vyhledávání/filtrování
+  - **Sentiment vizualizace na kartě:**
+    - Průměrné skóre s barevným kódováním
+    - Stacked bar (pozitivní / neutrální / negativní)
+    - Legenda s procenty a absolutními počty
+- [x] **Záložka Databáze** — `src/gui/frames/database.py`
+  - Tabulky: Uživatelé, Příspěvky, Trendy, Síť (Connections)
+- [x] **Záložka Analýza** — `src/gui/frames/analysis.py`
+  - Sentiment analýza s progress barem
+  - OCR analýza — příspěvky / komentáře / vše, live statistiky
+  - Výsledková tabulka per uživatel (vč. počtu OCR textů)
+- [x] **Dark theme** — `src/gui/theme.py` (Bitwarden-inspired paleta)
+- [x] **AsyncImageLoader** — načítání profilových fotek v threadu
+- [x] **PrintLogger** — přesměrování stdout/stderr do GUI log boxu
+
+---
+
+## Architektura a infrastruktura
+
+- [x] **Modulární architektura** — `core`, `bots`, `analysis`, `gui`, `utils`
+- [x] **BaseBot** — `src/core/base_bot.py`
+  - Playwright persistent context (izolované profily per identita)
+  - Anti-detekční skripty (webdriver, plugins, languages)
+  - `open_url`, `find_element_smart`, `click_smart`, `handle_popups`
+- [x] **Správa identit** — `data/users.json`, výběr v GUI
+- [x] **Batch scraping** — více cílů naráz s progress barem a pauzami
+- [x] **Thread safety** — veškeré bot operace v daemon threadech
+- [x] **Human input simulace** — `src/utils/human_input.py`
+  - `delay()`, `human_typing()`, `random_mouse_movement()`
+- [x] **Stealth mode** — základní anti-detekce v `BaseBot._apply_stealth_scripts()`
+  - `navigator.webdriver = undefined`, falešné pluginy, jazyky
+</file>
+
+<file path="#TODO.md">
+metriky: kolik to žere dat, rychlost scrapu (porovnání platforem), automatizace (jenom updaty), youtube
+
+
+# TODO: Ogma — Zbývající funkcionality
+
+---
+
+## 1. Odvozená Analytika (Backend výpočty)
+Statistiky počítané z již uložených dat v DB — nevyžadují nový scraping.
+
+- [ ] **Aktivita v čase (Activity Heatmap)**
+  - *Výstup:* Vizuální heatmapa hodin × dní v týdnu, nebo text „Postuje 18:00–22:00"
+  - *Cíl:* Určení časového pásma a Pattern of Life (detekce koordinovaného chování)
+  - *Zdroj dat:* Sloupec `timestamp_posted` v tabulce `posts`
+
+- [ ] **Nejpoužívanější Hashtagy**
+  - *Logika:* Regex extrakce `#\w+` z `text_content`, top 5 z posledních N příspěvků
+  - *Cíl:* Rychlá identifikace témat a narativů profilu
+
+- [ ] **Nejčastější zmínky (Mentions)**
+  - *Logika:* Regex extrakce `@\w+` z `text_content` příspěvků i komentářů
+  - *Cíl:* Mapování sociální bubliny a klíčových vazeb
+
+- [ ] **Poměr témat (Word Cloud / Top slova)**
+  - *Logika:* Tokenizace textu, vyloučení stop-slov, top 10–20 slov
+  - *Knihovny:* `wordcloud` + `matplotlib` nebo čistý výpis v GUI
+  - *Cíl:* Rychlý přehled hlavních témat profilu
+
+---
+
+## 2. Technické "Flagy" (Auto-tagging profilů)
+Automatické štítky přiřazované profilům na základě splněných podmínek.
+
+- [ ] **Tag: "Meme Warfare"**
+  - *Podmínka:* >50 % příspěvků má `media_url` ale prázdný `text_content`
+
+- [ ] **Tag: "New Account"**
+  - *Podmínka:* `joined_date` před méně než 30 dny od data scrape
+
+- [ ] **Tag: "High Impact"**
+  - *Podmínka:* Průměrně >1 000 lajků na příspěvek
+
+- [ ] **Tag: "Bot Suspect"** *(nový návrh)*
+  - *Podmínka:* Kombinace — nový účet + vysoký following/followers poměr + časté opakující se hashtagy
+
+- [ ] **Uložení flagů do DB**
+  - *Schema:* Nový sloupec `flags` (JSON pole) v tabulce `users`
+  - *GUI:* Zobrazení tagů jako barevné badges na kartě profilu
+
+---
+
+## 3. Vizualizace dat
+Grafické výstupy pro analýzu a prezentaci v diplomové práci.
+
+- [ ] **Activity Heatmap graf**
+  - *Knihovna:* `matplotlib` embedded v GUI (CTkFrame s canvas)
+  - *Výstup:* Matice 24h × 7 dní s intenzitou aktivity
+
+- [ ] **Síťový graf (Network Graph)**
+  - *Knihovna:* `networkx` + `matplotlib`
+  - *Data:* Tabulka `connections` (followers/following)
+  - *Cíl:* Vizualizace vztahů mezi profily, detekce clusterů
+
+- [ ] **Sentiment v čase**
+  - *Graf:* Liniový graf sentiment_score příspěvků/komentářů na časové ose
+  - *Cíl:* Identifikace událostí které způsobily nárůst negativního sentimentu
+
+- [ ] **Export grafů**
+  - *Formát:* PNG/PDF pro použití v diplomové práci
+
+---
+
+## 4. Export dat
+
+- [ ] **Export do CSV / XLSX**
+  - *Knihovna:* `pandas`
+  - *Obsah:* Uživatelé, příspěvky, komentáře, sentiment skóre
+  - *GUI:* Tlačítko "Exportovat" v záložce Databáze
+
+- [ ] **Export reportu (PDF)**
+  - *Obsah:* Shrnutí profilu — metadata, sentiment statistiky, top hashtagy, flagy
+  - *Cíl:* Přímý výstup pro prezentaci nebo přílohu diplomové práce
+
+---
+
+## 5. Rozšíření scrapingu
+
+- [ ] **Statické User ID (REST ID) pro X**
+  - *Důvod:* Trvalá identifikace nezávislá na změně @handle
+  - *Zdroj:* GraphQL response při načítání profilu
+
+- [ ] **Podpora dalších platforem**
+  - *Kandidáti:* Facebook (veřejné stránky), Telegram (veřejné kanály)
+  - *Priorita:* Nízká — IG a X pokrývají jádro práce
+
+---
+
+## 6. Anti-Detect & Profile Management
+
+- [ ] **User-Agent Persistence per profil**
+  - *Implementace:* Uložit `user_agent` do `users.json`, vynutit při startu BaseBot
+  - *Pravidlo:* Profil nesmí měnit OS/Browser verzi mezi relacemi
+
+- [ ] **Konzistence rozlišení okna (Viewport)**
+  - *Implementace:* Fixní `window_size` per profil uložený v `users.json`
+
+- [ ] **Health Check profilu při startu**
+  - *Funkce:* "Jsem přihlášen?", "Je účet shadowbanovaný?"
+  - *Akce:* Při fail → update `account_status` v DB, přeskočit těžbu
+
+- [ ] **Podpora Proxy per profil**
+  - *Config:* Pole `proxy_url` v `users.json` (formát `http://user:pass@ip:port`)
+  - *Implementace:* Injekce do Playwright `launch_persistent_context`
+
+- [ ] **Canvas & WebGL Noise**
+  - *Implementace:* JS injection — jemné zašumění pro unikátní fingerprint per profil
+
+- [ ] **AudioContext Fingerprint**
+  - *Implementace:* Modifikace audio stacku v `_apply_stealth_scripts()`
+
+- [ ] **Font Enumeration Masking**
+  - *Implementace:* Omezení viditelné sady systémových fontů
+
+---
+
+## 7. Account Warming (Zahřívání účtů)
+
+- [ ] **Modul WarmupBot**
+  - *Chování:* Scrollování home feedu, náhodné rozklikávání médií, 1–3 lajky za session
+  - *Cíl:* Zvýšení „trust score" před spuštěním scrape
+
+- [ ] **Simulace rychlosti čtení**
+  - *Logika:* Pauza u dlouhých textů odpovídající ~200 slovům za minutu
+
+- [ ] **Scheduler — pracovní doba profilu**
+  - *Logika:* Virtuální timezone per profil, zákaz aktivity v „hluboké noci"
+
+---
+
+## 8. Databáze a Monitoring
+
+- [ ] **Historie akcí a Rate Limiting**
+  - *Metrika:* Logovat počet requestů, scrollů za 24h
+  - *Limit:* Při překročení → Cooldown 24h
+
+- [ ] **Sloupec `account_status` v tabulce `users`**
+  - *Hodnoty:* `Active`, `Cooldown`, `Banned`, `Login Required`
+  - *GUI:* Barevný indikátor na kartě profilu
+</file>
+
+<file path="diary.txt">
+#TODO: Vizualizace dat (Activity Heatmap, Síťový graf, Sentiment v čase), Export dat (CSV/XLSX/PDF), Technické flagy (Meme Warfare, New Account, High Impact, Bot Suspect), Odvozená analytika (Hashtagy, Mentions, Word Cloud)
+
+10.2.2026
+--------------------------------------------------------------------------------
+MIGRACE NA DRISSIONPAGE & SESSION PERSISTENCE
+
+1. Přechod ze Selenium na DrissionPage:
+   - Selenium bylo detekováno Xkem (Login loop/Unusual activity).
+   - DrissionPage ovládá prohlížeč přímo přes protokol CDP, což je mnohem hůře detekovatelné.
+
+2. Implementace Portable Browseru:
+   - Staženo "Ungoogled Chromium" (Portable verze).
+   - Umístěno do `social_bot/browser/chrome.exe`.
+   - Důvod: Úplná izolace od systémových prohlížečů (Edge/Brave) a prevence synchronizace s mým osobním účtem.
+
+3. Session Persistence (Ukládání přihlášení):
+   - Bot si nyní pamatuje cookies a neodhlašuje se po vypnutí.
+   - Cesta k profilům: `social_bot/profiles/{ID}`.
+   - Oprava chyby DrissionPage: Bylo nutné vypnout `auto_port()` a nastavit pevný port (9333), jinak DrissionPage ignoroval naši složku a vytvářel dočasné profily v %TEMP%.
+
+4. Vyřešení problémů s cestou (OneDrive):
+   - Problém: OneDrive zamykal soubory profilu a Chromium nedokázalo číst cestu s mezerami a diakritikou ("Programování (moje)").
+   - Řešení: Přesun celého projektu z Plochy přímo do rootu disku (`C:\Ogma`).
+
+5. Ríša doporučuje CamouFox pro randomizaci fingerprintů
+
+STAV: Funkční login (X), cookies se ukládají, bot přežije restart aplikace.
+
+11.2.2026
+--------------------------------------------------------------------------------
+ROZŠÍŘENÍ OSINT BOTŮ (X & IG) A INTEGRACE DATABÁZE DO GUI
+
+1. Architektura GUI a Command Center:
+   - Zavedeno zobrazení SQLite databáze přímo do aplikace pomocí záložek (Tabs) a knihovny Treeview.
+   - Vyřešena automatická správa oken: Aplikace se nyní spolehlivě otevírá na sekundárním monitoru a maximalizuje se.
+   - Zdolán problém s vykreslovacím enginem CustomTkinteru (který rušil maximalizaci okna) přidáním zpoždění (after delay) před voláním state('zoomed').
+
+2. Vylepšení Databáze (SQLite):
+   - Migrace primárních klíčů z inkrementálních INTEGER na UUID pro lepší budoucí škálovatelnost a propojování dat.
+   - Přidány nové tabulky comments a trending.
+   - Přidány sloupce platform (pro snadnější filtraci) a media_url.
+   - Zavedeny automatické migrace schématu a rutiny pro promazávání vadných dat z testování.
+
+3. X Scraper (Twitter):
+   - Opraveno vyhledávání: Bot již nehledá přesnou textovou shodu (která selhávala u rozdílů mezi Display Name a Handle), ale kliká na první relevantní výsledek (UserCell).
+   - Implementována těžba Top 50 komentářů pod příspěvky.
+   - Řešení "Meme Warfare": Pokud uživatel odpoví pouze obrázkem/videem bez textu, bot to rozezná, uloží URL média a text nahradí štítkem [OBSAHUJE FOTKU/VIDEO].
+   - Přidána těžba Trendů s robustním očištěním textového balastu (odstranění stringů jako "Trending in Czechia" nebo oddělovacích teček).
+
+4. Instagram Scraper (Největší technické výzvy):
+   - Vyhledávání: Obfuskace kódu a paměť vyhledávání IG znemožnily klasické DOM vyhledávání. Vyřešeno čtením odkazů shora dolů a kliknutím na první profil, který obsahuje profilový obrázek (vyloučení textového menu a vlastního účtu).
+   - Lazy Loading: Implementováno scrollování a explicitní čekání na vykreslení mřížky fotek (Grid), aby bot nehlásil prázdné profily.
+   - Těžba komentářů (Modal window): Klasický XPath selhal, protože IG v okně s komentáři odstranil tagy <ul>/<li> a standardní scroll posouval pozadí.
+   - Řešení: Nasazena přímá JavaScriptová injekce (run_js). 
+     a) Extrakční skript: Hledá stabilní elementy <time>, stoupá v DOMu nahoru pro zachycení celého bloku a čistí text od UI tlačítek.
+     b) Scroll skript: Identifikuje izolované divy s vlastností overflowY: scroll/auto a rotuje jimi nezávisle na hlavní stránce.
+   - Chybějící ID komentářů vyřešeno generováním kompozitních klíčů (PostID_Author_Timestamp).
+
+STAV: Aplikace funguje jako Command Center. X bot těží profily, komentáře i trendy. IG bot dokáže překonat Lazy Loading a pomocí JS injekcí těžit data z modálních oken.
+
+17.2.2026
+--------------------------------------------------------------------------------
+REDESIGN GUI (BITWARDEN STYLE) A OPTIMALIZACE X SCRAPERA
+
+1. Nové GUI a Vizualizace dat:
+   - Kompletní přepis `app.py`: Přechod z horních záložek na levý Sidebar (inspirováno aplikací Bitwarden).
+   - Nová sekce "Scrapnuté Profily": Data vizualizována formou karet s profilovkou, biem a statistikami (místo pouhé tabulky).
+   - Implementován asynchronní loader obrázků s cacheováním a "Center-Crop" ořezem, aby se fotky ve widgetech nedeformovaly.
+   - Přidán Progress Bar a detailní status log pro sledování průběhu hromadných operací.
+
+2. Pokročilá logika X Scrapera (Zrychlení a Stabilita):
+   - Hromadný sběr (Batch Scraping): Pole pro cíl nyní přijímá seznam jmen oddělený čárkami (např. "elonmusk, nasa, ...").
+   - Třístupňové vyhledávání cíle (konec hádání URL):
+     1. Cache (DB): Pokud známe handle z minula, jdeme přímo.
+     2. X Search: Interní vyhledávání přes záložku Explore -> People.
+     3. Google Fallback: Pokud X selže, bot hledá přes Google ("Jmeno twitter") a kliká na první výsledek.
+   - Optimalizace komentářů: Přechod na "snapshot" metodu – bot načte všechny viditelné komentáře naráz a rychleji scrolluje, místo čekání na každý element zvlášť.
+
+3. Řešení Profilových Fotek (High-Res):
+   - Problém: X v DOMu často poskytuje jen náhledy (`_bigger`, 73x73px), které se externě nenačítají.
+   - Řešení: Implementována inteligentní detekce. Pokud bot vidí URL s nízkou kvalitou, fyzicky klikne na fotku, otevře modální okno (Media Viewer), extrahuje originál (`400x400`+) a okno zavře.
+   - Přidána podpora pro čtvercové avatary (firemní účty se zlatou fajfkou).
+
+4. Databáze:
+   - Automatická migrace: Do tabulky `users` přidán sloupec `profile_pic_url`.
+
+18.2.2026
+--------------------------------------------------------------------------------
+MODULARIZACE ARCHITEKTURY, ROZŠÍŘENÁ METADATA A VIDEO SNIFFING
+
+1. Rozsáhlý Refactoring (Modularizace):
+   - Provedena kompletní restrukturalizace kódu pro zvýšení přehlednosti a udržitelnosti.
+   - GUI (app.py): Monolit rozdělen na hlavní kontroler a samostatné komponenty ve složce `src/gui/frames/` (Dashboard, Profiles, Database).
+   - X Scraper: Rozdělen na specializované moduly v `src/bots/x/modules/` (Search, Profile, Posts, Comments).
+   - Utils & Theme: Izolace barevných palet a pomocných tříd (Logger, AsyncImageLoader).
+
+2. Rozšířená OSINT Metadata (X):
+   - Scraper a Databáze rozšířeny o sběr detailních informací o cíli.
+   - Nově těžená data: Datum registrace (Joined Date), Lokace, Webová stránka, Počet sledovaných (Following), Banner URL a Status ověření (Verified).
+   - Implementována automatická migrace DB schématu (`_migrate_db`) pro přidání nových sloupců za chodu.
+
+3. Pokročilá práce s médii a komentáři:
+   - Video Sniffing (Fáze 2): Implementována experimentální logika pro záchyt `.m3u8` streamů pomocí odposlechu síťové komunikace (`page.listen`), což obchází absenci přímých odkazů v DOMu.
+   - Komentáře (Fáze 3): Opravena integrace těžby komentářů. Bot nyní automaticky vytěží komentáře pro všechny příspěvky nalezené v timeline.
+
+4. UX Vylepšení:
+   - Logování: Do konzole v GUI přidána časová razítka pro lepší debugging a měření latence operací.
+   - GUI: Karty profilů aktualizovány pro zobrazení nových metadat (ikony, status ověření).
+
+19.2.2026
+--------------------------------------------------------------------------------
+KOMPLETNÍ MIGRACE NA PLAYWRIGHT A STABILIZACE SCRAPERŮ
+
+1. Architektonická změna (DrissionPage -> Playwright):
+   - Kompletní přepis vrstvy webové automatizace na synchronní Playwright.
+   - Odstraněna nespolehlivá knihovna playwright-stealth, nahrazena nativní injekcí skriptů pro skrytí webdriveru a podvržení metadat (plugins, languages).
+   - Správa prohlížeče plně přesunuta do pracovních vláken, čímž byl vyřešen kritický pád (greenlet.error) při manuálním ukončení bota z GUI.
+
+2. Masivní vylepšení X (Twitter) Scraperu:
+   - Video Sniffing: Původní čekání na .m3u8 přesunuto na pokročilé odchytávání GraphQL odpovědí (page.on("response")). Nyní bot získává čisté přímé .mp4 adresy ze serverů X.
+   - Detekce médií: Opravena chyba, kdy X maskuje načítající se videa jako fotky. Přidána kontrola URL na "video_thumb".
+   - Komentáře: Zavedena dodatečná Fáze 4 pro stahování .mp4 videí i z vláken komentářů.
+
+3. Komplexní oprava Instagram Scraperu:
+   - Čísla a lokalizace: Napsán robustní parser pro česká čísla, který si poradí s textem "tis." i se zrádnými nedělitelnými mezerami (\xa0).
+   - Média a Kolotoče (Carousels): Scraper nyní dokáže "proklikat" kolotoč fotek a uložit všechny adresy oddělené středníkem. Zavedeno striktní pravidlo (ignorování tagu <a>), které úspěšně zamezuje stahování fotek z cizích příspěvků v doporučené mřížce.
+   - Extrakce metadat: Kompletní přepis těžby profilu do komplexní JavaScriptové injekce. Bot přesně čte jméno, bio, verifikaci, followers/following a odkaz na web přímo z HTML hlavičky profilu, čímž obchází zmatené zanořování divů na IG.
+   - Oprava komentářů: Zavedeny filtry omezující délku textu pro detekci lajků a odstraňující systémové texty ("Zobrazit všech X odpovědí"), díky čemuž se statistiky ukládají naprosto přesně.
+
+10.3.2026
+--------------------------------------------------------------------------------
+IMPLEMENTACE TĚŽBY SÍTĚ (FOLLOWERS/FOLLOWING) A OPRAVY GUI
+
+1. Uživatelské vstupy a flexibilní limity:
+   - Do ovládacího panelu (Dashboard) přidány dedikované vstupy pro limity: Příspěvky, Komentáře, Sledující a Sleduje.
+   - Hodnoty jsou nyní dynamicky předávány napříč celou architekturou až do jednotlivých modulů scraperu.
+
+2. Těžba Sítě (Network Scraping):
+   - Nově implementováno bezpečné stahování vazeb profilů (omezené vzorky pro ochranu účtů před bany).
+   - IG Scraper: Napsána pokročilá JS injekce, která izoluje scrollování výhradně na vyskakovací modální okno se seznamem uživatelů a parsuje jejich href odkazy.
+   - X Scraper (Twitter): Vytvořen nový modul network.py. Pro spolehlivou extrakci uživatelských jmen (i přes vizuální překážky jako jsou odznaky ověření) nasazen regulární výraz hledající vzor @handle.
+
+3. Databáze a nová vizualizace (Vault):
+   - Vytvořena nová databázová tabulka "connections" evidující vztahy: zdrojový účet -> nalezený uživatel -> typ vazby (follower/following).
+   - Do modulu DatabaseFrame v GUI přidána čtvrtá záložka "Síť (Connections)", která tyto nasbírané vztahy okamžitě zobrazuje formou tabulky.
+
+4. Opravy chyb a stabilizace UI:
+   - Vyřešen problém se zamrznutím X Scraperu u profilů s 0 příspěvky (přidána pojistka počítající iterace bez nového obsahu).
+   - Zpřísněn JS filtr pro extrakci Instagram biografie (nyní spolehlivě odfiltruje systémové texty jako "Sleduji (47)").
+   - Opraveno parsování Instagram UI u profilových karet (odstranění neviditelných znaků a prázdných řádků pomocí split/join a přidáno levé zarovnání textu pro kompaktnější vzhled).
+
+11.3.2026
+--------------------------------------------------------------------------------
+ANALYTICKÁ NADSTAVBA — SENTIMENT, OCR A VIZUALIZACE PROFILŮ
+ 
+1. Architektura analytického modulu:
+   - Vytvořena nová složka `src/analysis/` jako samostatná analytická vrstva oddělená od scrapingu.
+   - Dva nové moduly: `sentiment.py` (sentiment analýza) a `image_ocr.py` (OCR analýza obrázků).
+   - Nová GUI záložka "Analýza" (`src/gui/frames/analysis.py`) jako centrální ovládací panel pro veškerou analytiku.
+ 
+2. Sentiment analýza komentářů (`src/analysis/sentiment.py`):
+   - Implementována třívrstá pipeline: Preprocessing → Kontextový slovník → VADER.
+   - Preprocessing textu před analýzou:
+     a) Emoji → textový popis pomocí knihovny `emoji` (🆘 → "SOS button", ❤️ → "red heart").
+     b) Hashtagy → čitelná slova pomocí CamelCase splitu a heuristik (#FreeIran → "free iran", #NoDeal → "no deal").
+     c) Odstranění URL a @mentions (nenesou sentiment).
+   - Vrstva 1 — Kontextový slovník (`context_lexicon.json`):
+     - ~150 výrazů v 8 kategoriích: politické osobnosti, dezinformační narativy, bot/spam indikátory, válečná terminologie, íránská specifika, pozitivní solidarita, emoji jako text, CZ/SK/ES výrazy.
+     - Víceslovné fráze mají vyšší váhu než jednoslovné ("stolen election" > "rigged").
+     - Sekce `custom` pro přidávání výrazů za běhu přes `add_to_lexicon()`.
+   - Vrstva 2 — VADER: Lexikální analýza přeloženého textu (detekce jazyka přes `langdetect`, překlad přes `deep-translator`).
+   - Finální skóre: vážený průměr (55 % slovník / 45 % VADER), rozsah -1.0 až +1.0.
+   - Automatická DB migrace: Nové sloupce `sentiment_score`, `sentiment_label`, `sentiment_lang` v tabulce `comments`.
+   - Dvě režimy spuštění: automaticky po každém scrape + manuálně přes GUI tlačítko.
+   - Příklad opravy: "EPSTEIN" → slovník -0.7, VADER 0.0, finál -0.385 → negative ✓
+ 
+3. OCR analýza obrázků (`src/analysis/image_ocr.py`):
+   - Tesseract OCR s pytesseract wrapperem.
+   - Preprocessing obrázků pro zlepšení přesnosti: normalizace barevného módu, zvětšení malých obrázků (min 600px), převod na šedou, zvýšení kontrastu (2×), zostření hran.
+   - Podpora více URL v jednom záznamu (Instagram kolotoče, středník jako separátor).
+   - Filtrování video thumbnail URL (video_thumb, ext_tw_video) — ty neobsahují čitelný text.
+   - Čištění OCR výstupu: odstranění artefaktů, řádků s méně než 2 smysluplnými znaky.
+   - Sentiment analýza extrahovaného textu předána do SentimentAnalyzeru.
+   - Sentinel hodnota "" pro zpracované obrázky bez textu (aby se nepřepracovávaly).
+   - Automatická DB migrace: Nové sloupce `media_text`, `media_sentiment_score`, `media_sentiment_label` v tabulkách `posts` i `comments`.
+   - Podporované jazyky OCR: EN, CS, SK, ES (dle dostupných .traineddata souborů).
+ 
+4. Vizualizace sentimentu na kartách profilů (`src/gui/frames/profiles.py`):
+   - Každá karta profilu rozšířena o sentiment panel (zobrazí se pouze pokud jsou analyzovaná data).
+   - Levá část: Průměrné skóre (+0.234 / -0.512) velkým písmem v barvě výsledku + label + počet komentářů.
+   - Pravá část: Stacked bar — horizontální pruhový graf rozdělený na 3 segmenty (pos/neu/neg).
+     - Implementován čistým tkinter Canvas bez externích grafických knihoven.
+     - Krajní segmenty mají zaoblené rohy, střední jsou hranaté — vizuálně splývají v jeden pruh.
+   - Legenda pod barem: barevná tečka + název + procento + absolutní počet pro každý segment.
+ 
+5. GUI záložka Analýza (`src/gui/frames/analysis.py`):
+   - Panel 1 — Sentiment: Tlačítko spuštění + progress bar + počítadlo.
+   - Panel 2 — OCR: Tři tlačítka (Příspěvky / Komentáře / Vše) + progress bar + živé statistiky zpracování.
+   - Výsledková tabulka: Agregované výsledky per uživatel s barevným kódováním řádků + nový sloupec "OCR textů".
+   - Veškeré operace běží v daemon threadech (GUI neblokuje).
+ 
+6. Nové závislosti přidány do requirements.txt:
+   - `vaderSentiment`, `langdetect`, `deep-translator`, `emoji`, `pytesseract`
+ 
+STAV: Plně funkční analytická vrstva. Komentáře i příspěvky mají sentiment skóre, obrázky jsou OCR analyzovány. Profily zobrazují grafické shrnutí sentimentu přímo na kartě.
+</file>
+
+<file path="html.html">
+<div id="contents" class=" style-scope ytd-item-section-renderer style-scope ytd-item-section-renderer">
+    <ytd-comment-thread-renderer class="style-scope ytd-item-section-renderer" use-small-avatars="" scrolling-enabled=""><!--css-build:shady--><!--css_build_scope:ytd-comment-thread-renderer--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js--><div id="comment-container" class="style-scope ytd-comment-thread-renderer">
+  <div class="removed-placeholder style-scope ytd-comment-thread-renderer" hidden="">
+    <yt-icon icon="WARNING_FILLED" class="style-scope ytd-comment-thread-renderer"><!--css-build:shady--><!--css_build_scope:yt-icon--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js,video.youtube.src.web.polymer.shared.core.yt_icon.yt.icon.css.js--><span class="yt-icon-shape style-scope yt-icon ytSpecIconShapeHost"><div style="width: 100%; height: 100%; display: block; fill: currentcolor;"><svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24" focusable="false" aria-hidden="true" style="pointer-events: none; display: inherit; width: 100%; height: 100%;"><path d="m10.735 1.748-.056.096L1.016 19.79A1.5 1.5 0 002.336 22h19.326a1.5 1.5 0 001.408-2.02l-.087-.19L13.32 1.844l-.056-.096a1.5 1.5 0 00-2.529 0ZM12 7.5a1 1 0 011 1v5a1 1 0 01-2 0v-5a1 1 0 011-1Zm0 8.25a1.25 1.25 0 110 2.5 1.25 1.25 0 010-2.5Z"></path></svg></div></span></yt-icon>
+    <yt-formatted-string class="style-scope ytd-comment-thread-renderer" is-empty=""><!--css-build:shady--><!--css_build_scope:yt-formatted-string--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js,video.youtube.src.web.polymer.shared.ui.yt_formatted_string.yt.formatted.string.css.js--><yt-attributed-string class="style-scope yt-formatted-string"></yt-attributed-string></yt-formatted-string>
+  </div>
+  <ytd-comment-view-model id="comment" class="style-scope ytd-comment-thread-renderer" use-small-avatars="" comment-threading-enabled="" web-watch-compact-comments="" optimal-reading-width-comments="" style="--ytd-comment-paid-background-color: initial;"><!--css-build:shady--><!--css_build_scope:ytd-comment-view-model--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js--><div id="paid-comment-background" class="style-scope ytd-comment-view-model"></div>
+<div id="linked-comment-badge" class="style-scope ytd-comment-view-model"></div>
+
+<div id="body" class="style-scope ytd-comment-view-model">
+  
+  <div id="author-thumbnail" class="style-scope ytd-comment-view-model">
+    <button id="author-thumbnail-button" class="style-scope ytd-comment-view-model" aria-label="@lens_hunter">
+      <yt-img-shadow fit="" height="40" width="40" class="style-scope ytd-comment-view-model no-transition" style="background-color: transparent;" loaded=""><!--css-build:shady--><!--css_build_scope:yt-img-shadow--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js,video.youtube.src.web.polymer.shared.ui.yt_img_shadow.yt.img.shadow.css.js--><img id="img" draggable="false" class="style-scope yt-img-shadow" alt="" height="40" width="40" src="https://yt3.ggpht.com/ytc/AIdro_kOa5SkUCeLeWGDRCq8nu6uReonie1xTB5LFte7MYmH0kg=s88-c-k-c0x00ffffff-no-rj"></yt-img-shadow>
+    </button>
+    <div class="threadline style-scope ytd-comment-view-model"><div class="continuation style-scope ytd-comment-view-model"></div></div>
+  </div>
+  <div id="main" class="style-scope ytd-comment-view-model">
+    <div id="header" class="style-scope ytd-comment-view-model">
+      <div id="pinned-comment-badge" class="style-scope ytd-comment-view-model"></div>
+      <div id="header-author" class="style-scope ytd-comment-view-model">
+        
+        <h3 class="style-scope ytd-comment-view-model">
+          
+          <a id="author-text" class="yt-simple-endpoint style-scope ytd-comment-view-model" href="/@lens_hunter">
+            <span class=" style-scope ytd-comment-view-model style-scope ytd-comment-view-model"> @lens_hunter </span>
+          </a>
+        </h3>
+        <span id="author-comment-badge" class="style-scope ytd-comment-view-model"></span>
+        <span id="sponsor-comment-badge" class="style-scope ytd-comment-view-model"></span>
+        <span dir="auto" id="published-time-text" class="style-scope ytd-comment-view-model">
+          <a class="yt-simple-endpoint style-scope ytd-comment-view-model" href="/watch?v=zcAzFXHHxZU&amp;lc=UgwKi3cu3vd2BmWPdMt4AaABAg">
+            před 6 měsíci
+          </a>
+        </span>
+      </div>
+    </div>
+    
+    <ytd-expander id="expander" max-number-of-lines="4" class="style-scope ytd-comment-view-model" collapsed="" should-use-number-of-lines="" style="--ytd-expander-max-lines: 4;"><!--css-build:shady--><!--css_build_scope:ytd-expander--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js--><div id="content" class="style-scope ytd-expander">
+  
+  <yt-pdg-comment-chip-renderer id="paid-comment-chip" slot="content" class="style-scope ytd-comment-view-model" hidden=""><!--css-build:shady--><!--css_build_scope:yt-pdg-comment-chip-renderer--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js,video.youtube.src.web.polymer.shared.ui.renderers.pdg.yt_pdg_comment_chip_renderer.yt.pdg.comment.chip.renderer.css.js--><div id="comment-chip-container" class="style-scope yt-pdg-comment-chip-renderer"><yt-icon class="style-scope yt-pdg-comment-chip-renderer" style="width: 12px; height: 12px;"><!--css-build:shady--><!--css_build_scope:yt-icon--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js,video.youtube.src.web.polymer.shared.core.yt_icon.yt.icon.css.js--></yt-icon><span id="comment-chip-price" class="style-scope yt-pdg-comment-chip-renderer">  </span></div></yt-pdg-comment-chip-renderer><yt-attributed-string slot="content" id="content-text" class="style-scope ytd-comment-view-model"><span class="yt-core-attributed-string yt-core-attributed-string--white-space-pre-wrap" dir="auto" role="text" style="">There's some serious irony when shows call out corporate greed when the only reason the show exists is corporate greed.</span></yt-attributed-string>
+</div>
+
+<tp-yt-paper-button id="less" aria-expanded="true" noink="" class="style-scope ytd-expander" hidden="" style-target="host" role="button" tabindex="0" animated="" elevation="0" aria-disabled="false"><!--css-build:shady--><!--css_build_scope:tp-yt-paper-button--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js,third_party.javascript.youtube_components.tp_yt_paper_button.tp.yt.paper.button.css.js-->
+  <span class="less-button style-scope ytd-comment-view-model" slot="less-button">Zobrazit méně</span>
+
+</tp-yt-paper-button>
+<tp-yt-paper-button id="more" aria-expanded="false" noink="" class="style-scope ytd-expander" style-target="host" role="button" tabindex="0" animated="" elevation="0" aria-disabled="false" hidden=""><!--css-build:shady--><!--css_build_scope:tp-yt-paper-button--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js,third_party.javascript.youtube_components.tp_yt_paper_button.tp.yt.paper.button.css.js-->
+  <span class="more-button style-scope ytd-comment-view-model" slot="more-button">Číst dále</span>
+
+</tp-yt-paper-button>
+
+</ytd-expander>
+    <yt-attributed-string id="error-text" class="style-scope ytd-comment-view-model"></yt-attributed-string>
+    <ytd-tri-state-button-view-model class="translate-button style-scope ytd-comment-view-model" state="untoggled" hidden=""><!--css-build:shady--><!--css_build_scope:ytd-tri-state-button-view-model--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js--><tp-yt-paper-button noink="" class="style-scope ytd-tri-state-button-view-model" style-target="host" role="button" tabindex="0" animated="" elevation="0" aria-disabled="false"><!--css-build:shady--><!--css_build_scope:tp-yt-paper-button--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js,third_party.javascript.youtube_components.tp_yt_paper_button.tp.yt.paper.button.css.js-->
+  
+
+</tp-yt-paper-button></ytd-tri-state-button-view-model>
+    <ytd-comment-engagement-bar id="action-buttons" class="style-scope ytd-comment-view-model"><!--css-build:shady--><!--css_build_scope:ytd-comment-engagement-bar--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js--><div id="toolbar" class="style-scope ytd-comment-engagement-bar">
+  
+  <ytd-toggle-button-renderer id="like-button" button-tooltip-position="bottom" icon-size="16" class="style-scope ytd-comment-engagement-bar" button-renderer="true"><!--css-build:shady--><yt-button-shape>
+<button class="yt-spec-button-shape-next yt-spec-button-shape-next--text yt-spec-button-shape-next--mono yt-spec-button-shape-next--size-s yt-spec-button-shape-next--icon-button yt-spec-button-shape-next--enable-backdrop-filter-experiment" title="" aria-pressed="false" aria-label="Označit tento komentář jako Líbí se mi (stejně jako 8,6&nbsp;tis.&nbsp;dalších uživatelů)" aria-disabled="false"><div aria-hidden="true" class="yt-spec-button-shape-next__icon"><span class="ytIconWrapperHost" style="width: 16px; height: 16px;"><span class="yt-icon-shape ytSpecIconShapeHost"><div style="width: 100%; height: 100%; display: block; fill: currentcolor;"><svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24" focusable="false" aria-hidden="true" style="pointer-events: none; display: inherit; width: 100%; height: 100%;"><path d="M9.221 1.795a1 1 0 011.109-.656l1.04.173a4 4 0 013.252 4.784L14 9h4.061a3.664 3.664 0 013.576 2.868A3.68 3.68 0 0121 14.85l.02.087A3.815 3.815 0 0120 18.5v.043l-.01.227a2.82 2.82 0 01-.135.663l-.106.282A3.754 3.754 0 0116.295 22h-3.606l-.392-.007a12.002 12.002 0 01-5.223-1.388l-.343-.189-.27-.154a2.005 2.005 0 00-.863-.26l-.13-.004H3.5a1.5 1.5 0 01-1.5-1.5V12.5A1.5 1.5 0 013.5 11h1.79l.157-.013a1 1 0 00.724-.512l.063-.145 2.987-8.535Zm-1.1 9.196A3 3 0 015.29 13H4v4.998h1.468a4 4 0 011.986.528l.27.155.285.157A10 10 0 0012.69 20h3.606c.754 0 1.424-.483 1.663-1.2l.03-.126a.819.819 0 00.012-.131v-.872l.587-.586c.388-.388.577-.927.523-1.465l-.038-.23-.02-.087-.21-.9.55-.744A1.663 1.663 0 0018.061 11H14a2.002 2.002 0 01-1.956-2.418l.623-2.904a2 2 0 00-1.626-2.392l-.21-.035-2.71 7.741Z"></path></svg></div></span></span></div><yt-touch-feedback-shape aria-hidden="true" class="ytSpecTouchFeedbackShapeHost ytSpecTouchFeedbackShapeTouchResponse"><div class="ytSpecTouchFeedbackShapeStroke"></div><div class="ytSpecTouchFeedbackShapeFill"></div></yt-touch-feedback-shape></button></yt-button-shape>
+<tp-yt-paper-tooltip fit-to-visible-bounds="" offset="8" role="tooltip" tabindex="-1" aria-label="tooltip"><!--css-build:shady--><!--css_build_scope:tp-yt-paper-tooltip--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js,third_party.javascript.youtube_components.tp_yt_paper_tooltip.tp.yt.paper.tooltip.css.js--><div id="tooltip" class="hidden style-scope tp-yt-paper-tooltip" style-target="tooltip">
+  Líbí se
+</div>
+</tp-yt-paper-tooltip>
+</ytd-toggle-button-renderer>
+  <span id="vote-count-middle" class="style-scope ytd-comment-engagement-bar">
+    8,6&nbsp;tis.
+  </span>
+  
+  <ytd-toggle-button-renderer id="dislike-button" button-tooltip-position="bottom" icon-size="16" class="style-scope ytd-comment-engagement-bar" button-renderer="true"><!--css-build:shady--><yt-button-shape>
+<button class="yt-spec-button-shape-next yt-spec-button-shape-next--text yt-spec-button-shape-next--mono yt-spec-button-shape-next--size-s yt-spec-button-shape-next--icon-button yt-spec-button-shape-next--enable-backdrop-filter-experiment" title="" aria-pressed="false" aria-label="Označit tento komentář jako Nelíbí se" aria-disabled="false"><div aria-hidden="true" class="yt-spec-button-shape-next__icon"><span class="ytIconWrapperHost" style="width: 16px; height: 16px;"><span class="yt-icon-shape ytSpecIconShapeHost"><div style="width: 100%; height: 100%; display: block; fill: currentcolor;"><svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24" focusable="false" aria-hidden="true" style="pointer-events: none; display: inherit; width: 100%; height: 100%;"><path d="m11.31 2 .392.007c1.824.06 3.61.534 5.223 1.388l.343.189.27.154c.264.152.56.24.863.26l.13.004H20.5a1.5 1.5 0 011.5 1.5V11.5a1.5 1.5 0 01-1.5 1.5h-1.79l-.158.013a1 1 0 00-.723.512l-.064.145-2.987 8.535a1 1 0 01-1.109.656l-1.04-.174a4 4 0 01-3.251-4.783L10 15H5.938a3.664 3.664 0 01-3.576-2.868A3.682 3.682 0 013 9.15l-.02-.088A3.816 3.816 0 014 5.5v-.043l.008-.227a2.86 2.86 0 01.136-.664l.107-.28A3.754 3.754 0 017.705 2h3.605ZM7.705 4c-.755 0-1.425.483-1.663 1.2l-.032.126a.818.818 0 00-.01.131v.872l-.587.586a1.816 1.816 0 00-.524 1.465l.038.23.02.087.21.9-.55.744a1.686 1.686 0 00-.321 1.18l.029.177c.17.76.844 1.302 1.623 1.302H10a2.002 2.002 0 011.956 2.419l-.623 2.904-.034.208a2.002 2.002 0 001.454 2.139l.206.045.21.035 2.708-7.741A3.001 3.001 0 0118.71 11H20V6.002h-1.47c-.696 0-1.38-.183-1.985-.528l-.27-.155-.285-.157A10.002 10.002 0 0011.31 4H7.705Z"></path></svg></div></span></span></div><yt-touch-feedback-shape aria-hidden="true" class="ytSpecTouchFeedbackShapeHost ytSpecTouchFeedbackShapeTouchResponse"><div class="ytSpecTouchFeedbackShapeStroke"></div><div class="ytSpecTouchFeedbackShapeFill"></div></yt-touch-feedback-shape></button></yt-button-shape>
+<tp-yt-paper-tooltip fit-to-visible-bounds="" offset="8" role="tooltip" tabindex="-1" aria-label="tooltip"><!--css-build:shady--><!--css_build_scope:tp-yt-paper-tooltip--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js,third_party.javascript.youtube_components.tp_yt_paper_tooltip.tp.yt.paper.tooltip.css.js--><div id="tooltip" class="hidden style-scope tp-yt-paper-tooltip" style-target="tooltip">
+  Nelíbí se
+</div>
+</tp-yt-paper-tooltip>
+</ytd-toggle-button-renderer>
+  
+  <div id="creator-heart" class="style-scope ytd-comment-engagement-bar"><ytd-creator-heart-renderer class="style-scope ytd-comment-engagement-bar" heart-button-style="unknown"><!--css-build:shady--><!--css_build_scope:ytd-creator-heart-renderer--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js--><yt-icon-button id="creator-heart-button" class="style-scope ytd-creator-heart-renderer" disabled=""><!--css-build:shady--><!--css_build_scope:yt-icon-button--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js,video.youtube.src.web.polymer.shared.ui.yt_icon_button.yt.icon.button.css.js--><button id="button" class="style-scope yt-icon-button" disabled="" aria-label="Srdíčko">
+  
+    <yt-img-shadow id="hearted-thumbnail" class="style-scope ytd-creator-heart-renderer no-transition" style="background-color: transparent;" loaded=""><!--css-build:shady--><!--css_build_scope:yt-img-shadow--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js,video.youtube.src.web.polymer.shared.ui.yt_img_shadow.yt.img.shadow.css.js--><img id="img" draggable="false" class="style-scope yt-img-shadow" alt="" src="https://yt3.ggpht.com/ytc/AIdro_mcdQ1EvMqrytyBxYjSksrjjGwU-Xr1Z6jTeCVwwHiDNBs=s88-c-k-c0x00ffffff-no-rj"></yt-img-shadow>
+    <yt-icon id="hearted-border" class="style-scope ytd-creator-heart-renderer"><!--css-build:shady--><!--css_build_scope:yt-icon--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js,video.youtube.src.web.polymer.shared.core.yt_icon.yt.icon.css.js--><span class="yt-icon-shape style-scope yt-icon ytSpecIconShapeHost"><div style="width: 100%; height: 100%; display: block; fill: currentcolor;"><svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24" focusable="false" aria-hidden="true" style="pointer-events: none; display: inherit; width: 100%; height: 100%;"><path d="M16.25 2.5A6.56 6.56 0 0012 4.062 6.56 6.56 0 007.75 2.5C3.927 2.5 1 5.732 1 9.5c0 4.436 2.807 7.696 5.225 9.698a23.597 23.597 0 004.837 3.072l.095.044.029.013.01.004.005.003c.269-.61.535-1.222.799-1.834.797 1.834.799 1.834.799 1.834l.001-.001.003-.002.01-.004.03-.013.095-.044c.08-.037.19-.089.33-.157a23.6 23.6 0 004.507-2.915C20.193 17.196 23 13.936 23 9.5c0-3.768-2.927-7-6.75-7Zm0 2c2.623 0 4.75 2.239 4.75 5 0 7.089-9 11-9 11s-9-3.911-9-11c0-2.761 2.127-5 4.75-5a4.58 4.58 0 012.922 1.058A5 5 0 0112 7.265a5 5 0 011.328-1.707A4.58 4.58 0 0116.25 4.5Zm-3.453 17.834L12 20.5l-.797 1.834.797.347.797-.347Z"></path></svg></div></span></yt-icon>
+    <yt-icon id="hearted" class="style-scope ytd-creator-heart-renderer"><!--css-build:shady--><!--css_build_scope:yt-icon--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js,video.youtube.src.web.polymer.shared.core.yt_icon.yt.icon.css.js--><span class="yt-icon-shape style-scope yt-icon ytSpecIconShapeHost"><div style="width: 100%; height: 100%; display: block; fill: currentcolor;"><svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24" focusable="false" aria-hidden="true" style="pointer-events: none; display: inherit; width: 100%; height: 100%;"><path d="M16.25 3.5c-1.697 0-3.206.765-4.25 1.96C10.956 4.265 9.447 3.5 7.75 3.5 4.527 3.5 2 6.235 2 9.5c0 3.99 2.53 6.996 4.862 8.929 2.355 1.95 4.703 2.972 4.74 2.988l.398.174.398-.174c.037-.016 2.385-1.038 4.74-2.988C19.471 16.495 22 13.49 22 9.5c0-3.265-2.527-6-5.75-6Z"></path></svg></div></span></yt-icon>
+  <ps-dom-if class="style-scope ytd-creator-heart-renderer"><template is="dom-if"></template></ps-dom-if>
+  <ps-dom-if class="style-scope ytd-creator-heart-renderer"><template is="dom-if"></template></ps-dom-if>
+</button><yt-interaction id="interaction" class="circular style-scope yt-icon-button"><!--css-build:shady--><!--css_build_scope:yt-interaction--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js,video.youtube.src.web.polymer.shared.ui.yt_interaction.yt.interaction.css.js--><div class="stroke style-scope yt-interaction"></div><div class="fill style-scope yt-interaction"></div></yt-interaction></yt-icon-button>
+<tp-yt-paper-tooltip class="style-scope ytd-creator-heart-renderer" role="tooltip" tabindex="-1" aria-label="tooltip" style="left: 65.2031px; top: 116px;"><!--css-build:shady--><!--css_build_scope:tp-yt-paper-tooltip--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js,third_party.javascript.youtube_components.tp_yt_paper_tooltip.tp.yt.paper.tooltip.css.js--><div id="tooltip" class="style-scope tp-yt-paper-tooltip hidden" style-target="tooltip">
+  ❤ od kanálu @TheCriticalDrinker
+</div>
+</tp-yt-paper-tooltip>
+</ytd-creator-heart-renderer></div>
+  
+  <ytd-button-renderer id="reply-button-end" force-icon-button="true" class="style-scope ytd-comment-engagement-bar" button-renderer="" button-next=""><!--css-build:shady--><yt-button-shape><button class="yt-spec-button-shape-next yt-spec-button-shape-next--text yt-spec-button-shape-next--mono yt-spec-button-shape-next--size-s yt-spec-button-shape-next--enable-backdrop-filter-experiment" title="" aria-label="Odpovědět"><div class="yt-spec-button-shape-next__button-text-content"><span class="yt-core-attributed-string yt-core-attributed-string--white-space-no-wrap" role="text" style="">Odpovědět</span></div><yt-touch-feedback-shape aria-hidden="true" class="ytSpecTouchFeedbackShapeHost ytSpecTouchFeedbackShapeTouchResponse"><div class="ytSpecTouchFeedbackShapeStroke"></div><div class="ytSpecTouchFeedbackShapeFill"></div></yt-touch-feedback-shape></button></yt-button-shape><tp-yt-paper-tooltip offset="8" disable-upgrade=""></tp-yt-paper-tooltip></ytd-button-renderer>
+</div>
+
+<div id="reply-dialog" class="style-scope ytd-comment-engagement-bar"></div>
+</ytd-comment-engagement-bar>
+  </div>
+  
+  <div id="action-menu" class="style-scope ytd-comment-view-model">
+    <ytd-menu-renderer class="style-scope ytd-comment-view-model" safe-area="" menu-active=""><!--css-build:shady--><!--css_build_scope:ytd-menu-renderer--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js--><div id="top-level-buttons-computed" class="top-level-buttons style-scope ytd-menu-renderer"></div><div id="flexible-item-buttons" class="style-scope ytd-menu-renderer"></div><yt-icon-button id="button" class="dropdown-trigger style-scope ytd-menu-renderer" style-target="button"><!--css-build:shady--><!--css_build_scope:yt-icon-button--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js,video.youtube.src.web.polymer.shared.ui.yt_icon_button.yt.icon.button.css.js--><button id="button" class="style-scope yt-icon-button" aria-label="Nabídka akcí"><yt-icon class="style-scope ytd-menu-renderer"><!--css-build:shady--><!--css_build_scope:yt-icon--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js,video.youtube.src.web.polymer.shared.core.yt_icon.yt.icon.css.js--><span class="yt-icon-shape style-scope yt-icon ytSpecIconShapeHost"><div style="width: 100%; height: 100%; display: block; fill: currentcolor;"><svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24" focusable="false" aria-hidden="true" style="pointer-events: none; display: inherit; width: 100%; height: 100%;"><path d="M12 4a2 2 0 100 4 2 2 0 000-4Zm0 6a2 2 0 100 4 2 2 0 000-4Zm0 6a2 2 0 100 4 2 2 0 000-4Z"></path></svg></div></span></yt-icon></button><yt-interaction id="interaction" class="circular style-scope yt-icon-button"><!--css-build:shady--><!--css_build_scope:yt-interaction--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js,video.youtube.src.web.polymer.shared.ui.yt_interaction.yt.interaction.css.js--><div class="stroke style-scope yt-interaction"></div><div class="fill style-scope yt-interaction"></div></yt-interaction></yt-icon-button><yt-button-shape id="button-shape" class="style-scope ytd-menu-renderer" hidden=""></yt-button-shape></ytd-menu-renderer>
+  </div>
+</div>
+<div id="edit-dialog" class="style-scope ytd-comment-view-model" hidden=""></div>
+</ytd-comment-view-model>
+</div>
+<div id="replies" class="style-scope ytd-comment-thread-renderer">
+  
+    <ytd-comment-replies-renderer class="style-scope ytd-comment-thread-renderer" modern="" comment-threading-enabled=""><!--css-build:shady--><!--css_build_scope:ytd-comment-replies-renderer--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js--><div id="expander" class="style-scope ytd-comment-replies-renderer" hidden="">
+  <div class="expander-header style-scope ytd-comment-replies-renderer">
+    <div class="more-button style-scope ytd-comment-replies-renderer" aria-expanded="false">
+      <ps-dom-if class="style-scope ytd-comment-replies-renderer"><template is="dom-if"></template></ps-dom-if>
+      <ps-dom-if class="style-scope ytd-comment-replies-renderer"><template is="dom-if"></template></ps-dom-if>
+      <ytd-button-renderer id="more-replies" class="more-button style-scope ytd-comment-replies-renderer" noink="" button-renderer="" button-next=""><!--css-build:shady--><yt-button-shape><button class="yt-spec-button-shape-next yt-spec-button-shape-next--text yt-spec-button-shape-next--mono yt-spec-button-shape-next--size-m yt-spec-button-shape-next--icon-trailing yt-spec-button-shape-next--align-by-text yt-spec-button-shape-next--enable-backdrop-filter-experiment" title="" aria-label="106&nbsp;odpovědí"><div class="yt-spec-button-shape-next__button-text-content"><span class="yt-core-attributed-string yt-core-attributed-string--white-space-no-wrap" role="text" style="">106&nbsp;odpovědí</span></div><div class="yt-spec-button-shape-next__icon"><span class="ytIconWrapperHost" style="width: 24px; height: 24px;"><span class="yt-icon-shape ytSpecIconShapeHost"><div style="width: 100%; height: 100%; display: block; fill: currentcolor;"><svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24" focusable="false" aria-hidden="true" style="pointer-events: none; display: inherit; width: 100%; height: 100%;"><path d="M18.707 8.793a1 1 0 00-1.414 0L12 14.086 6.707 8.793a1 1 0 10-1.414 1.414L12 16.914l6.707-6.707a1 1 0 000-1.414Z"></path></svg></div></span></span></div><yt-touch-feedback-shape aria-hidden="true" class="ytSpecTouchFeedbackShapeHost ytSpecTouchFeedbackShapeTouchResponse"><div class="ytSpecTouchFeedbackShapeStroke"></div><div class="ytSpecTouchFeedbackShapeFill"></div></yt-touch-feedback-shape></button></yt-button-shape><tp-yt-paper-tooltip offset="8" disable-upgrade=""></tp-yt-paper-tooltip></ytd-button-renderer>
+    </div>
+    <div class="less-button style-scope ytd-comment-replies-renderer" aria-expanded="true" hidden="">
+      <ps-dom-if class="style-scope ytd-comment-replies-renderer"><template is="dom-if"></template></ps-dom-if>
+      <ps-dom-if class="style-scope ytd-comment-replies-renderer"><template is="dom-if"></template></ps-dom-if>
+      <ytd-button-renderer id="less-replies" class="less-button style-scope ytd-comment-replies-renderer" noink="" hidden="" button-renderer="" button-next=""><!--css-build:shady--><yt-button-shape><button class="yt-spec-button-shape-next yt-spec-button-shape-next--text yt-spec-button-shape-next--mono yt-spec-button-shape-next--size-m yt-spec-button-shape-next--icon-trailing yt-spec-button-shape-next--align-by-text yt-spec-button-shape-next--enable-backdrop-filter-experiment" title="" aria-label="Skrýt odpovědi"><div class="yt-spec-button-shape-next__button-text-content"><span class="yt-core-attributed-string yt-core-attributed-string--white-space-no-wrap" role="text" style="">Skrýt odpovědi</span></div><div class="yt-spec-button-shape-next__icon"><span class="ytIconWrapperHost" style="width: 24px; height: 24px;"><span class="yt-icon-shape ytSpecIconShapeHost"><div style="width: 100%; height: 100%; display: block; fill: currentcolor;"><svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24" focusable="false" aria-hidden="true" style="pointer-events: none; display: inherit; width: 100%; height: 100%;"><path d="M5.293 15.207a1 1 0 001.414 0L12 9.914l5.293 5.293a1 1 0 101.414-1.414L12 7.086l-6.707 6.707a1 1 0 000 1.414Z"></path></svg></div></span></span></div><yt-touch-feedback-shape aria-hidden="true" class="ytSpecTouchFeedbackShapeHost ytSpecTouchFeedbackShapeTouchResponse"><div class="ytSpecTouchFeedbackShapeStroke"></div><div class="ytSpecTouchFeedbackShapeFill"></div></yt-touch-feedback-shape></button></yt-button-shape><tp-yt-paper-tooltip offset="8" disable-upgrade=""></tp-yt-paper-tooltip></ytd-button-renderer>
+    </div>
+  </div>
+  <div id="expander-contents" class="style-scope ytd-comment-replies-renderer" hidden="">
+    <div id="contents" class="style-scope ytd-comment-replies-renderer"></div>
+    <div class="cont-button style-scope ytd-comment-replies-renderer" id="continuation"></div>
+  </div>
+</div>
+<div id="teaser-replies" class="style-scope ytd-comment-replies-renderer" hidden=""></div>
+<div id="collapsed-threads" class="style-scope ytd-comment-replies-renderer">
+  <ps-dom-repeat class="style-scope ytd-comment-replies-renderer"><template is="dom-repeat"></template></ps-dom-repeat>
+  <ps-dom-repeat class="style-scope ytd-comment-replies-renderer"><template is="dom-repeat"></template></ps-dom-repeat>
+  <yt-sub-thread class="ytSubThreadHost ytSubThreadHasButton ytSubThreadTopLevelThread"><div class="ytSubThreadThreadline"><div class="ytSubThreadConnection"></div><div class="ytSubThreadContinuation"></div><div class="ytSubThreadShadow"></div></div><div class="ytSubThreadSubThreadContent">
+    <div class="show-replies-button style-scope ytd-comment-replies-renderer">
+      <ps-dom-if class="style-scope ytd-comment-replies-renderer"><template is="dom-if"></template></ps-dom-if>
+      <ytd-button-renderer id="more-replies-sub-thread" aria-controls="expanded-threads" class="style-scope ytd-comment-replies-renderer" aria-expanded="true" button-renderer="" button-next=""><!--css-build:shady--><yt-button-shape><button class="yt-spec-button-shape-next yt-spec-button-shape-next--text yt-spec-button-shape-next--mono yt-spec-button-shape-next--size-m yt-spec-button-shape-next--icon-trailing yt-spec-button-shape-next--enable-backdrop-filter-experiment" title="" aria-label="106&nbsp;odpovědí"><div class="yt-spec-button-shape-next__button-text-content"><span class="yt-core-attributed-string yt-core-attributed-string--white-space-no-wrap" role="text" style="">106&nbsp;odpovědí</span></div><div class="yt-spec-button-shape-next__icon"><span class="ytIconWrapperHost" style="width: 24px; height: 24px;"><span class="yt-icon-shape ytSpecIconShapeHost"><div style="width: 100%; height: 100%; display: block; fill: currentcolor;"><svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24" focusable="false" aria-hidden="true" style="pointer-events: none; display: inherit; width: 100%; height: 100%;"><path d="M18.707 8.793a1 1 0 00-1.414 0L12 14.086 6.707 8.793a1 1 0 10-1.414 1.414L12 16.914l6.707-6.707a1 1 0 000-1.414Z"></path></svg></div></span></span></div><yt-touch-feedback-shape aria-hidden="true" class="ytSpecTouchFeedbackShapeHost ytSpecTouchFeedbackShapeTouchResponse"><div class="ytSpecTouchFeedbackShapeStroke"></div><div class="ytSpecTouchFeedbackShapeFill"></div></yt-touch-feedback-shape></button></yt-button-shape><tp-yt-paper-tooltip offset="8" disable-upgrade=""></tp-yt-paper-tooltip></ytd-button-renderer>
+    </div>
+  </div></yt-sub-thread>
+</div>
+<div id="expanded-threads" class="style-scope ytd-comment-replies-renderer" hidden="">
+  
+    <yt-sub-thread class="ytSubThreadHost ytSubThreadHasButton ytSubThreadTopLevelThread"><div class="ytSubThreadThreadline"><div class="ytSubThreadConnection"></div><div class="ytSubThreadContinuation"></div><div class="ytSubThreadShadow"></div></div><div class="ytSubThreadSubThreadContent">
+      <ps-dom-if class="style-scope ytd-comment-replies-renderer"><template is="dom-if"></template></ps-dom-if>
+      
+        <ytd-continuation-item-renderer class="replies-continuation style-scope ytd-comment-replies-renderer" is-comments-section="" engagement-panel="" is-watch-page=""><!--css-build:shady--><!--css_build_scope:ytd-continuation-item-renderer--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js--><div id="ghost-cards" class="style-scope ytd-continuation-item-renderer"></div>
+<div id="ghost-comment-section" class="style-scope ytd-continuation-item-renderer"><yt-ghost-comments class="ytGhostCommentsHost"><div class="ytGhostCommentsComments"><div class="ytGhostCommentsGhostCard"><div class="ytGhostCommentsAvatar"><div class="ytGhostCommentsCircle"></div></div><div class="ytGhostCommentsHost"><div class="ytGhostCommentsMeta"><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div></div><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div><div class="ytGhostCommentsGhostLikeDislike"><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div></div></div></div><div class="ytGhostCommentsGhostCard"><div class="ytGhostCommentsAvatar"><div class="ytGhostCommentsCircle"></div></div><div class="ytGhostCommentsHost"><div class="ytGhostCommentsMeta"><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div></div><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div><div class="ytGhostCommentsGhostLikeDislike"><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div></div></div></div><div class="ytGhostCommentsGhostCard"><div class="ytGhostCommentsAvatar"><div class="ytGhostCommentsCircle"></div></div><div class="ytGhostCommentsHost"><div class="ytGhostCommentsMeta"><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div></div><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div><div class="ytGhostCommentsGhostLikeDislike"><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div></div></div></div></div></yt-ghost-comments></div>
+<tp-yt-paper-spinner id="spinner" class="style-scope ytd-continuation-item-renderer" aria-hidden="true" aria-label="loading"><!--css-build:shady--><!--css_build_scope:tp-yt-paper-spinner--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js,third_party.javascript.youtube_components.tp_yt_paper_spinner.tp.yt.paper.spinner.css.js--><div id="spinnerContainer" class="  style-scope tp-yt-paper-spinner">
+  <div class="spinner-layer layer-1 style-scope tp-yt-paper-spinner">
+    <div class="circle-clipper left style-scope tp-yt-paper-spinner">
+      <div class="circle style-scope tp-yt-paper-spinner"></div>
+    </div>
+    <div class="circle-clipper right style-scope tp-yt-paper-spinner">
+      <div class="circle style-scope tp-yt-paper-spinner"></div>
+    </div>
+  </div>
+
+  <div class="spinner-layer layer-2 style-scope tp-yt-paper-spinner">
+    <div class="circle-clipper left style-scope tp-yt-paper-spinner">
+      <div class="circle style-scope tp-yt-paper-spinner"></div>
+    </div>
+    <div class="circle-clipper right style-scope tp-yt-paper-spinner">
+      <div class="circle style-scope tp-yt-paper-spinner"></div>
+    </div>
+  </div>
+
+  <div class="spinner-layer layer-3 style-scope tp-yt-paper-spinner">
+    <div class="circle-clipper left style-scope tp-yt-paper-spinner">
+      <div class="circle style-scope tp-yt-paper-spinner"></div>
+    </div>
+    <div class="circle-clipper right style-scope tp-yt-paper-spinner">
+      <div class="circle style-scope tp-yt-paper-spinner"></div>
+    </div>
+  </div>
+
+  <div class="spinner-layer layer-4 style-scope tp-yt-paper-spinner">
+    <div class="circle-clipper left style-scope tp-yt-paper-spinner">
+      <div class="circle style-scope tp-yt-paper-spinner"></div>
+    </div>
+    <div class="circle-clipper right style-scope tp-yt-paper-spinner">
+      <div class="circle style-scope tp-yt-paper-spinner"></div>
+    </div>
+  </div>
+</div>
+</tp-yt-paper-spinner>
+<div id="button" class="style-scope ytd-continuation-item-renderer" hidden=""></div>
+</ytd-continuation-item-renderer>
+      <ps-dom-if class="style-scope ytd-comment-replies-renderer"><template is="dom-if"></template></ps-dom-if>
+    </div></yt-sub-thread>
+  <ps-dom-repeat class="style-scope ytd-comment-replies-renderer"><template is="dom-repeat"></template></ps-dom-repeat>
+  <ps-dom-if restamp="" class="style-scope ytd-comment-replies-renderer"><template is="dom-if"></template></ps-dom-if>
+</div>
+</ytd-comment-replies-renderer>
+  <dom-if class="style-scope ytd-comment-thread-renderer"><template is="dom-if"></template></dom-if>
+</div>
+<div class="thread-hitbox style-scope ytd-comment-thread-renderer"></div>
+</ytd-comment-thread-renderer>
+<ytd-continuation-item-renderer class="style-scope ytd-item-section-renderer" is-watch-page="" is-comments-section=""><!--css-build:shady--><!--css_build_scope:ytd-continuation-item-renderer--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js--><div id="ghost-cards" class="style-scope ytd-continuation-item-renderer"></div>
+<div id="ghost-comment-section" class="style-scope ytd-continuation-item-renderer"><yt-ghost-comments class="ytGhostCommentsHost"><div class="ytGhostCommentsComments"><div class="ytGhostCommentsGhostCard"><div class="ytGhostCommentsAvatar"><div class="ytGhostCommentsCircle"></div></div><div class="ytGhostCommentsHost"><div class="ytGhostCommentsMeta"><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div></div><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div><div class="ytGhostCommentsGhostLikeDislike"><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div></div></div></div><div class="ytGhostCommentsGhostCard"><div class="ytGhostCommentsAvatar"><div class="ytGhostCommentsCircle"></div></div><div class="ytGhostCommentsHost"><div class="ytGhostCommentsMeta"><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div></div><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div><div class="ytGhostCommentsGhostLikeDislike"><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div></div></div></div><div class="ytGhostCommentsGhostCard"><div class="ytGhostCommentsAvatar"><div class="ytGhostCommentsCircle"></div></div><div class="ytGhostCommentsHost"><div class="ytGhostCommentsMeta"><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div></div><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div><div class="ytGhostCommentsGhostLikeDislike"><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div><div class="ytGhostCommentsGhostText ytGhostCommentsGhostFill"></div></div></div></div></div></yt-ghost-comments></div>
+<tp-yt-paper-spinner id="spinner" class="style-scope ytd-continuation-item-renderer" aria-hidden="true" aria-label="loading"><!--css-build:shady--><!--css_build_scope:tp-yt-paper-spinner--><!--css_build_styles:video.youtube.src.web.polymer.shared.ui.styles.yt_base_styles.yt.base.styles.css.js,third_party.javascript.youtube_components.tp_yt_paper_spinner.tp.yt.paper.spinner.css.js--><div id="spinnerContainer" class="  style-scope tp-yt-paper-spinner">
+  <div class="spinner-layer layer-1 style-scope tp-yt-paper-spinner">
+    <div class="circle-clipper left style-scope tp-yt-paper-spinner">
+      <div class="circle style-scope tp-yt-paper-spinner"></div>
+    </div>
+    <div class="circle-clipper right style-scope tp-yt-paper-spinner">
+      <div class="circle style-scope tp-yt-paper-spinner"></div>
+    </div>
+  </div>
+
+  <div class="spinner-layer layer-2 style-scope tp-yt-paper-spinner">
+    <div class="circle-clipper left style-scope tp-yt-paper-spinner">
+      <div class="circle style-scope tp-yt-paper-spinner"></div>
+    </div>
+    <div class="circle-clipper right style-scope tp-yt-paper-spinner">
+      <div class="circle style-scope tp-yt-paper-spinner"></div>
+    </div>
+  </div>
+
+  <div class="spinner-layer layer-3 style-scope tp-yt-paper-spinner">
+    <div class="circle-clipper left style-scope tp-yt-paper-spinner">
+      <div class="circle style-scope tp-yt-paper-spinner"></div>
+    </div>
+    <div class="circle-clipper right style-scope tp-yt-paper-spinner">
+      <div class="circle style-scope tp-yt-paper-spinner"></div>
+    </div>
+  </div>
+
+  <div class="spinner-layer layer-4 style-scope tp-yt-paper-spinner">
+    <div class="circle-clipper left style-scope tp-yt-paper-spinner">
+      <div class="circle style-scope tp-yt-paper-spinner"></div>
+    </div>
+    <div class="circle-clipper right style-scope tp-yt-paper-spinner">
+      <div class="circle style-scope tp-yt-paper-spinner"></div>
+    </div>
+  </div>
+</div>
+</tp-yt-paper-spinner>
+<div id="button" class="style-scope ytd-continuation-item-renderer" hidden=""></div>
+</ytd-continuation-item-renderer></div>
+</file>
+
+<file path="markdown.py">
+import os
+
+# Konfigurace - uprav podle potřeby
+
+# BASIC)
+EXCLUDE_DIRS = {'.git', 'profiles', 'venv', '.venv', '__pycache__', '.idea', '.vscode',}
+
+# BEZ IG
+# EXCLUDE_DIRS = {'.git', 'profiles', 'venv', '.venv', '__pycache__', '.idea', '.vscode', 'instagram'}
+
+# BEZ X
+# EXCLUDE_DIRS = {'.git', 'profiles', 'venv', '.venv', '__pycache__', '.idea', '.vscode', 'x'}
+
+# BEZ GUI
+# EXCLUDE_DIRS = {'.git', 'profiles', 'venv', '.venv', '__pycache__', '.idea', '.vscode', 'gui'}
+
+EXCLUDE_FILES = {'projekt_pro_ai.md', '__init__.py', 'test_profile.py', '.gitignore', 'users.json', 'markdown.py', 'diary.txt', 'pozn.txt', 'top50.txt', 'topCZ.txt', 'html.html', 'pozn.txt'}
+EXTENSIONS = {'.py', '.txt', '.yaml', '.yml', '.sql', '.html', '.css'}
+
+def project_to_markdown(output_file):
+    with open(output_file, 'w', encoding='utf-8') as outfile:
+        for root, dirs, files in os.walk('.'):
+            # Odfiltrování nepotřebných složek
+            dirs[:] = [d for d in dirs if d not in EXCLUDE_DIRS]
+            
+            for file in files:
+                if file in EXCLUDE_FILES or not any(file.endswith(ext) for ext in EXTENSIONS):
+                    continue
+                
+                full_path = os.path.join(root, file)
+                relative_path = os.path.relpath(full_path, '.')
+                
+                # Zápis do Markdownu
+                outfile.write(f"## Soubor: {relative_path}\n")
+                outfile.write(f"```{file.split('.')[-1]}\n") # detekce jazyka podle přípony
+                try:
+                    with open(full_path, 'r', encoding='utf-8') as f:
+                        outfile.write(f.read())
+                except Exception as e:
+                    outfile.write(f"Chyba při čtení souboru: {e}")
+                outfile.write("\n```\n\n")
+
+if __name__ == "__main__":
+    project_to_markdown('projekt_pro_ai.md')
+    print("Hotovo! Tvůj kód je v souboru projekt_pro_ai.md")
+</file>
+
+<file path="pozn.txt">
+<div class="x78zum5 xdt5ytf xh8yej3"><div class="xjhjgkd x1s9qjmn x71vvrb x7gj0x1 x167l43f x11lwdb5 xfxe0gy x1szzd0g xh2argp x13fuv20 x18b5jzi x1q0q8m5 x1t7ytsu x178xt8z x1lun4ml xso031l xpilrb4 x9f619 x78zum5 xdt5ytf xl56j7k x1l0fimt x6ikm8r x10wlt62 x8fpamh x1plnv5r xf7dkkf xv54qhq x1n2onr6 xh8yej3 x1ja2u2z xggcdpo xzxmhi2 x1bhcc0k x1poa18a"><div class="x6s0dn4 x78zum5 x1qughib xh8yej3"><input class="x1i10hfl xggy1nq xtpw4lu x1tutvks x1s3xk63 x1s07b3s x1a2a7pz xjbqb8w x1v8p93f x1o3jo1z x16stqrj xv5lvn5 x1ejq31n x18oe1m7 x1sy0etr xstzfhl x972fbf x10w94by x1qhh985 x14e42zd x9f619 xzsf02u x1lliihq x15h3p50 x10emqs4 x1vr9vpq x1iyjqo2 x10d0gm4 x1fhayk4 x16wdlz0 x3cjxhe xe9ewy2 x11lt19s xeuugli xlyipyv x1hcrkkg xfvqz1d x12vv892 x1hu168l xttzon8 x1sfh74k x3fqe8q x185fvkj x1p97g3g xmtqnhx x11ig0mb xgmu6d7 x1quw8ve xx0ingd xp5op4 x1y44fgy xdzva22 xs8nzd4 x1fzehxr xha3pab" dir="ltr" autocomplete="username webauthn" aria-invalid="false" id="_r_k_" type="text" value="" name="email"><label class="x10d0gm4 x1fhayk4 x3cjxhe x1al4vs7 x12scifz xmper1u xdg88n9 xzwoauc x193iq5w x6ikm8r x10wlt62 x47corl x10l6tqk xlyipyv x1d7kzl9 xii2z7h x11xpdln x1r7x56h xuxw1ft xp5op4 x1y44fgy xdzva22 xs8nzd4 x1fzehxr xha3pab" for="_r_k_">Číslo mobilu, uživatelské jméno nebo e-mail</label></div><div></div></div></div>
+</file>
+
+<file path="requirements.txt">
 DrissionPage
 customtkinter
 keyboard
@@ -15,10 +909,9 @@ pytesseract
 wordcloud
 matplotlib
 psutil
-```
+</file>
 
-## Soubor: social_bot\main.py
-```py
+<file path="social_bot/main.py">
 from src.gui.app import App
 
 if __name__ == "__main__":
@@ -30,10 +923,290 @@ if __name__ == "__main__":
         print("\n[INFO] Aplikace byla ukončena uživatelem (CTRL+C).")
     except Exception as e:
         print(f"\n[CRITICAL ERROR] Aplikace spadla: {e}")
-```
+</file>
 
-## Soubor: social_bot\src\analysis\image_ocr.py
-```py
+<file path="social_bot/src/analysis/__init__.py">
+
+</file>
+
+<file path="social_bot/src/analysis/context_lexicon.json">
+{
+  "_comment": "Kontextový slovník pro sentiment analýzu v doméně informační války a politického diskurzu.",
+  "_comment2": "Skóre: -1.0 (silně negativní) až +1.0 (silně pozitivní). Klíče jsou vždy lowercase.",
+  "_comment3": "Emoji sekce pracuje s textovými popisy po preprocessing (např. 🆘 → 'SOS button').",
+
+  "political_figures_negative": {
+    "epstein": -0.7,
+    "epstin": -0.7,
+    "epstein files": -0.8,
+    "hunter biden": -0.5,
+    "soros": -0.6,
+    "schwab": -0.5,
+    "globalist": -0.6,
+    "deep state": -0.7,
+    "cabal": -0.8,
+    "pedophile": -0.95,
+    "pedo": -0.95,
+    "peedough": -0.95,
+    "groomer": -0.9,
+    "war criminal": -0.85,
+    "traitor": -0.8,
+    "tyrant": -0.75,
+    "dictator": -0.65,
+    "corrupt": -0.65,
+    "puppet": -0.6,
+    "clinton": -0.4,
+    "obama": -0.3,
+    "biden": -0.3,
+    "zelensky": -0.3,
+    "trump": -0.2,
+    "putin": -0.4,
+    "xi": -0.3,
+    "netanyahu": -0.35,
+    "wef": -0.55,
+    "mollaas": -0.6,
+    "molla": -0.5,
+    "ayatollah": -0.45,
+    "regime": -0.5,
+    "bunker": -0.3
+  },
+
+  "disinfo_narratives": {
+    "fake news": -0.7,
+    "mainstream media": -0.5,
+    "msm": -0.55,
+    "lamestream": -0.65,
+    "propaganda": -0.7,
+    "psyop": -0.75,
+    "false flag": -0.75,
+    "hoax": -0.7,
+    "coverup": -0.65,
+    "cover up": -0.65,
+    "rigged": -0.7,
+    "stolen election": -0.75,
+    "election fraud": -0.8,
+    "they want you dead": -0.9,
+    "wake up": -0.4,
+    "wake up people": -0.55,
+    "sheeple": -0.65,
+    "sheep": -0.5,
+    "agenda": -0.45,
+    "new world order": -0.75,
+    "nwo": -0.6,
+    "great reset": -0.6,
+    "depopulation": -0.8,
+    "bioweapon": -0.8,
+    "plandemic": -0.85,
+    "scamdemic": -0.85,
+    "genocide": -0.9,
+    "holocaust": -0.6,
+    "nazi": -0.85,
+    "fascist": -0.75,
+    "communist": -0.55,
+    "marxist": -0.6,
+    "grooming": -0.85,
+    "indoctrination": -0.7,
+    "foreign aid": -0.3,
+    "200b": -0.35,
+    "no deal": -0.4,
+    "miga": -0.35
+  },
+
+  "bot_spam_indicators": {
+    "bot": -0.4,
+    "spam": -0.5,
+    "scam": -0.65,
+    "fake account": -0.7,
+    "astroturfing": -0.7,
+    "paid troll": -0.75,
+    "troll": -0.55,
+    "trolls": -0.55,
+    "shill": -0.65,
+    "click here": -0.4,
+    "follow back": -0.3,
+    "dm me": -0.2,
+    "comentarios son parecidos a los trolls": -0.75
+  },
+
+  "conflict_war": {
+    "war": -0.5,
+    "invasion": -0.65,
+    "occupation": -0.55,
+    "massacre": -0.85,
+    "genocide": -0.9,
+    "bombing": -0.7,
+    "terror": -0.75,
+    "terrorism": -0.8,
+    "terrorist": -0.8,
+    "nato": -0.2,
+    "sanctions": -0.35,
+    "nukes": -0.6,
+    "nuclear": -0.45,
+    "ww3": -0.7,
+    "world war": -0.65,
+    "junta": -0.55,
+    "coup": -0.5,
+    "civil war": -0.7,
+    "ethnic cleansing": -0.95,
+    "strike": -0.5,
+    "strike an elementary school": -0.95,
+    "elementary school": -0.6,
+    "building a bunker": -0.45
+  },
+
+  "iran_specific": {
+    "iran revolution": -0.4,
+    "iran protests": 0.3,
+    "free iran": 0.55,
+    "r2p for iran": 0.4,
+    "r2p": 0.3,
+    "sos": -0.6,
+    "iran sos": -0.75,
+    "javid shah": -0.3
+  },
+
+  "positive_solidarity": {
+    "support": 0.4,
+    "solidarity": 0.6,
+    "together": 0.45,
+    "united": 0.5,
+    "peace": 0.6,
+    "freedom": 0.55,
+    "liberty": 0.55,
+    "brave": 0.6,
+    "hero": 0.65,
+    "resist": 0.3,
+    "victory": 0.6,
+    "justice": 0.55,
+    "truth": 0.4,
+    "transparency": 0.45,
+    "accountability": 0.4,
+    "democracy": 0.5,
+    "rights": 0.4,
+    "love": 0.65,
+    "hope": 0.6,
+    "pray": 0.35,
+    "praying": 0.4,
+    "folded hands": 0.35,
+    "god bless": 0.5,
+    "slava ukraini": 0.55,
+    "glory to ukraine": 0.55,
+    "he said it all": 0.3,
+    "we are together": 0.6,
+    "stojime za": 0.55,
+    "standing together": 0.55
+  },
+
+  "emoji_as_text": {
+    "_comment": "Tyto výrazy odpovídají výstupu emoji.demojize() po preprocessingu",
+
+    "SOS button": -0.75,
+    "red exclamation mark": -0.5,
+    "warning": -0.55,
+    "loudspeaker": -0.2,
+    "megaphone": -0.2,
+    "skull": -0.7,
+    "skull and crossbones": -0.8,
+    "broken heart": -0.65,
+    "red heart": 0.55,
+    "orange heart": 0.45,
+    "yellow heart": 0.45,
+    "green heart": 0.4,
+    "blue heart": 0.4,
+    "purple heart": 0.45,
+    "black heart": -0.3,
+    "folded hands": 0.35,
+    "raised fist": 0.3,
+    "clapping hands": 0.5,
+    "fire": -0.2,
+    "bomb": -0.7,
+    "gun": -0.65,
+    "knife": -0.6,
+    "blood": -0.7,
+    "crying face": -0.55,
+    "loudly crying face": -0.65,
+    "angry face": -0.6,
+    "enraged face": -0.75,
+    "face with symbols on mouth": -0.65,
+    "smiling face": 0.5,
+    "grinning face": 0.55,
+    "face with tears of joy": 0.5,
+    "thumbs up": 0.5,
+    "thumbs down": -0.5,
+    "raised hand": 0.2,
+    "victory hand": 0.4,
+    "dove": 0.55,
+    "flag": 0.1,
+    "globe showing": 0.1,
+    "newspaper": -0.1,
+    "check mark": 0.3,
+    "cross mark": -0.4,
+    "exclamation mark": -0.3,
+    "question mark": -0.1,
+    "money bag": -0.2,
+    "locked": -0.2,
+    "chains": -0.5,
+    "person in prison": -0.7,
+    "police car light": -0.3,
+    "ambulance": -0.4,
+    "coffin": -0.8,
+    "headstone": -0.75
+  },
+
+  "czech_slovak_specific": {
+    "zlo": -0.65,
+    "lhář": -0.7,
+    "lhár": -0.7,
+    "lže": -0.6,
+    "dezinformace": -0.65,
+    "propaganda": -0.7,
+    "okupace": -0.65,
+    "okupovali": -0.6,
+    "zrádce": -0.8,
+    "zrádci": -0.8,
+    "fašista": -0.75,
+    "komunista": -0.55,
+    "korupce": -0.65,
+    "korupční": -0.7,
+    "podvod": -0.65,
+    "podvodník": -0.7,
+    "stojíme za": 0.55,
+    "spojenec": 0.4,
+    "spojenci": 0.4,
+    "svoboda": 0.55,
+    "mír": 0.6,
+    "pravda": 0.45,
+    "násilí": -0.7,
+    "útok": -0.6,
+    "válka": -0.6,
+    "genocida": -0.9,
+    "šílenec": -0.65,
+    "diktátor": -0.7,
+    "mandát osn": -0.3
+  },
+
+  "spanish_specific": {
+    "mentira": -0.65,
+    "mentiroso": -0.7,
+    "corrupto": -0.7,
+    "tirano": -0.75,
+    "fascista": -0.75,
+    "propaganda": -0.7,
+    "trolls": -0.55,
+    "bots": -0.5,
+    "fake": -0.55,
+    "libertad": 0.55,
+    "paz": 0.6,
+    "juntos": 0.45,
+    "unidos": 0.5,
+    "comentarios son parecidos": -0.5
+  },
+
+  "custom": {}
+}
+</file>
+
+<file path="social_bot/src/analysis/image_ocr.py">
 """
 src/analysis/image_ocr.py
 
@@ -399,10 +1572,9 @@ class ImageOCRAnalyzer:
 
         print(f"[OCR] Celkem — příspěvky: {n_posts} | komentáře: {n_comments}")
         return n_posts, n_comments
-```
+</file>
 
-## Soubor: social_bot\src\analysis\sentiment.py
-```py
+<file path="social_bot/src/analysis/sentiment.py">
 """
 src/analysis/sentiment.py
 
@@ -735,10 +1907,9 @@ class SentimentAnalyzer:
                 print(f"[SENTIMENT] Přidáno do slovníku: '{phrase}' = {score}")
             except Exception as e:
                 print(f"[SENTIMENT ERROR] Uložení do slovníku selhalo: {e}")
-```
+</file>
 
-## Soubor: social_bot\src\analysis\text_stats.py
-```py
+<file path="social_bot/src/analysis/text_stats.py">
 """
 src/analysis/text_stats.py
 
@@ -992,10 +2163,13 @@ def _dark_theme_color(word, font_size, position, orientation, random_state=None,
         "hsl(195, 70%, 65%)",
     ]
     return random.choice(palettes)
-```
+</file>
 
-## Soubor: social_bot\src\bots\instagram\auth.py
-```py
+<file path="social_bot/src/bots/instagram/__init__.py">
+from .bot import InstagramBot
+</file>
+
+<file path="social_bot/src/bots/instagram/auth.py">
 from src.utils.human_input import delay
 
 class InstagramAuthenticator:
@@ -1080,10 +2254,9 @@ class InstagramAuthenticator:
             'Pustit se do toho', 'Get started'
         ])
         print("[IG] Přihlašovací proces dokončen.")
-```
+</file>
 
-## Soubor: social_bot\src\bots\instagram\bot.py
-```py
+<file path="social_bot/src/bots/instagram/bot.py">
 from src.core.base_bot import BaseBot
 from .auth import InstagramAuthenticator
 from .scraper import InstagramScraper
@@ -1101,10 +2274,9 @@ class InstagramBot(BaseBot):
 
     def login(self):
         self.auth.login()
-```
+</file>
 
-## Soubor: social_bot\src\bots\instagram\scraper.py
-```py
+<file path="social_bot/src/bots/instagram/scraper.py">
 from src.utils.human_input import delay
 from src.core.database import DatabaseManager
 import re
@@ -1827,10 +2999,13 @@ class InstagramScraper:
             self.bot.page.locator('div[role="dialog"]').wait_for(state="hidden", timeout=5000)
         except:
             pass
-```
+</file>
 
-## Soubor: social_bot\src\bots\x\auth.py
-```py
+<file path="social_bot/src/bots/x/__init__.py">
+from .bot import XBot
+</file>
+
+<file path="social_bot/src/bots/x/auth.py">
 from src.utils.human_input import delay
 
 class XAuthenticator:
@@ -1907,10 +3082,9 @@ class XAuthenticator:
             delay(3)
         except Exception as e:
             print(f"[X] Pole pro heslo nebylo včas nalezeno: {e}")
-```
+</file>
 
-## Soubor: social_bot\src\bots\x\bot.py
-```py
+<file path="social_bot/src/bots/x/bot.py">
 from src.core.base_bot import BaseBot
 from .auth import XAuthenticator
 from .scraper import XScraper
@@ -1927,129 +3101,13 @@ class XBot(BaseBot):
 
     def login(self):
         self.auth.login()
-```
+</file>
 
-## Soubor: social_bot\src\bots\x\scraper.py
-```py
-from src.core.database import DatabaseManager
-from .modules.search import XSearchModule
-from .modules.profile import XProfileModule
-from .modules.posts import XPostsModule
-from .modules.comments import XCommentsModule
-from .modules.network import XNetworkModule
-from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+<file path="social_bot/src/bots/x/modules/__init__.py">
 
-class XScraper:
-    def __init__(self, bot):
-        self.bot = bot
-        self.db = DatabaseManager()
-        
-        self.search_module   = XSearchModule(bot, self.db)
-        self.profile_module  = XProfileModule(bot, self.db)
-        self.posts_module    = XPostsModule(bot, self.db)
-        self.comments_module = XCommentsModule(bot, self.db)
-        self.network_module  = XNetworkModule(bot, self.db)
+</file>
 
-        # Callback pro GUI progress bary.
-        # Formát: progress_callback(key, current, total)
-        # Nastavuje se z app.py před spuštěním scrape.
-        self.progress_callback = None
-
-    def _report(self, key: str, current: int, total: int):
-        """Bezpečné volání progress_callback — nevyhodí výjimku."""
-        if self.progress_callback:
-            try:
-                self.progress_callback(key, current, total)
-            except Exception:
-                pass
-
-    def scrape_profile(self, target_query, limit=10, comments_limit=50,
-                       followers_limit=50, following_limit=50):
-        limit_text = "NEOMEZENO" if limit == -1 else str(limit)
-        print(f"[X-SCRAPER] Cíl: '{target_query}' (Limit: {limit_text} P / {comments_limit} K / {followers_limit} S)")
-        
-        if not self.search_module.find_profile(target_query):
-            print(f"[ERROR] Profil '{target_query}' nebyl nalezen ani přes Google.")
-            return
-
-        try:
-            current_url = self.bot.page.url
-            if "x.com/" in current_url:
-                actual_username = current_url.split('x.com/')[-1].split('?')[0].split('/')[0]
-            else:
-                actual_username = target_query.replace('@', '').replace(' ', '')
-        except:
-            actual_username = target_query.replace('@', '').replace(' ', '')
-
-        user_id = self.profile_module.scrape_metadata(actual_username)
-
-        # ── Příspěvky ────────────────────────────────────────────────────
-        videos_queue, comments_queue = self.posts_module.scrape_timeline(
-            user_id, limit,
-            progress_cb=lambda c, t: self._report("posts", c, t)
-        )
-
-        if videos_queue:
-            self.posts_module.process_videos(videos_queue)
-
-        # ── Komentáře ────────────────────────────────────────────────────
-        if comments_queue:
-            self.comments_module.scrape_for_queue(
-                comments_queue, limit=comments_limit,
-                progress_cb=lambda c, t: self._report("comments", c, t)
-            )
-        else:
-            print("[X-SCRAPER] Žádné příspěvky ke zpracování komentářů.")
-            self._report("comments", 0, 0)
-
-        # ── Síť ──────────────────────────────────────────────────────────
-        if followers_limit > 0:
-            self.network_module.scrape_followers(
-                actual_username, limit=followers_limit,
-                progress_cb=lambda c, t: self._report("followers", c, t)
-            )
-
-        if following_limit > 0:
-            self.network_module.scrape_following(
-                actual_username, limit=following_limit,
-                progress_cb=lambda c, t: self._report("following", c, t)
-            )
-
-        print("\n[X-SCRAPER] Hotovo.")
-
-    def scrape_trending(self):
-        print("[X-SCRAPER] Těžba trendů...")
-        try:
-            self.bot.page.goto("https://x.com/explore/tabs/trending",
-                               wait_until="domcontentloaded", timeout=30000)
-        except PlaywrightTimeoutError:
-            print("[X-SCRAPER] Varování: Timeout při načítání stránky trendů.")
-
-        trends_locator = self.bot.page.locator('[data-testid="trend"]')
-        try:
-            trends_locator.first.wait_for(state="visible", timeout=6000)
-        except PlaywrightTimeoutError:
-            print("[X-SCRAPER] Trendy se nenačetly.")
-            return
-            
-        trends = trends_locator.all()
-        print(f"[X-SCRAPER] Nalezeno {len(trends)} trendů.")
-        
-        for index, trend in enumerate(trends):
-            try:
-                text_content = trend.inner_text()
-                if not text_content: continue
-                text  = text_content.split('\n')
-                topic = text[1] if len(text) > 1 else text[0]
-                count = text[-1] if "posts" in text[-1] else "N/A"
-                self.db.upsert_trend("X", index+1, "General", topic, count)
-                print(f"  -> #{index+1} {topic}")
-            except Exception:
-                pass
-```
-
-## Soubor: social_bot\src\bots\x\modules\comments.py
-```py
+<file path="social_bot/src/bots/x/modules/comments.py">
 from src.utils.human_input import delay
 from .utils import XUtils
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
@@ -2229,10 +3287,9 @@ class XCommentsModule:
             self.bot.page.remove_listener("response", handle_response)
             
         return video_url
-```
+</file>
 
-## Soubor: social_bot\src\bots\x\modules\network.py
-```py
+<file path="social_bot/src/bots/x/modules/network.py">
 from src.utils.human_input import delay
 import re
 
@@ -2308,10 +3365,9 @@ class XNetworkModule:
                 delay(1.5, 3.0)
 
         print(f"[X-NETWORK] Těžba {type_cs} dokončena.")
-```
+</file>
 
-## Soubor: social_bot\src\bots\x\modules\posts.py
-```py
+<file path="social_bot/src/bots/x/modules/posts.py">
 import time
 from src.utils.human_input import delay
 from .utils import XUtils
@@ -2481,10 +3537,9 @@ class XPostsModule:
             self.bot.page.remove_listener("response", handle_response)
             
         return video_url
-```
+</file>
 
-## Soubor: social_bot\src\bots\x\modules\profile.py
-```py
+<file path="social_bot/src/bots/x/modules/profile.py">
 from src.utils.human_input import delay
 from .utils import XUtils
 
@@ -2582,10 +3637,9 @@ class XProfileModule:
                         delay(0.5)
         except: pass
         return profile_pic_url
-```
+</file>
 
-## Soubor: social_bot\src\bots\x\modules\search.py
-```py
+<file path="social_bot/src/bots/x/modules/search.py">
 # src/bots/x/modules/search.py
 from src.utils.human_input import delay
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
@@ -2790,10 +3844,9 @@ class XSearchModule:
         except Exception as e:
             print(f"[GOOGLE ERROR] {e}")
             return False
-```
+</file>
 
-## Soubor: social_bot\src\bots\x\modules\utils.py
-```py
+<file path="social_bot/src/bots/x/modules/utils.py">
 import re
 
 class XUtils:
@@ -2862,10 +3915,127 @@ class XUtils:
             pass
                 
         return current_text, media_url, is_video
-```
+</file>
 
-## Soubor: social_bot\src\bots\youtube\bot.py
-```py
+<file path="social_bot/src/bots/x/scraper.py">
+from src.core.database import DatabaseManager
+from .modules.search import XSearchModule
+from .modules.profile import XProfileModule
+from .modules.posts import XPostsModule
+from .modules.comments import XCommentsModule
+from .modules.network import XNetworkModule
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+
+class XScraper:
+    def __init__(self, bot):
+        self.bot = bot
+        self.db = DatabaseManager()
+        
+        self.search_module   = XSearchModule(bot, self.db)
+        self.profile_module  = XProfileModule(bot, self.db)
+        self.posts_module    = XPostsModule(bot, self.db)
+        self.comments_module = XCommentsModule(bot, self.db)
+        self.network_module  = XNetworkModule(bot, self.db)
+
+        # Callback pro GUI progress bary.
+        # Formát: progress_callback(key, current, total)
+        # Nastavuje se z app.py před spuštěním scrape.
+        self.progress_callback = None
+
+    def _report(self, key: str, current: int, total: int):
+        """Bezpečné volání progress_callback — nevyhodí výjimku."""
+        if self.progress_callback:
+            try:
+                self.progress_callback(key, current, total)
+            except Exception:
+                pass
+
+    def scrape_profile(self, target_query, limit=10, comments_limit=50,
+                       followers_limit=50, following_limit=50):
+        limit_text = "NEOMEZENO" if limit == -1 else str(limit)
+        print(f"[X-SCRAPER] Cíl: '{target_query}' (Limit: {limit_text} P / {comments_limit} K / {followers_limit} S)")
+        
+        if not self.search_module.find_profile(target_query):
+            print(f"[ERROR] Profil '{target_query}' nebyl nalezen ani přes Google.")
+            return
+
+        try:
+            current_url = self.bot.page.url
+            if "x.com/" in current_url:
+                actual_username = current_url.split('x.com/')[-1].split('?')[0].split('/')[0]
+            else:
+                actual_username = target_query.replace('@', '').replace(' ', '')
+        except:
+            actual_username = target_query.replace('@', '').replace(' ', '')
+
+        user_id = self.profile_module.scrape_metadata(actual_username)
+
+        # ── Příspěvky ────────────────────────────────────────────────────
+        videos_queue, comments_queue = self.posts_module.scrape_timeline(
+            user_id, limit,
+            progress_cb=lambda c, t: self._report("posts", c, t)
+        )
+
+        if videos_queue:
+            self.posts_module.process_videos(videos_queue)
+
+        # ── Komentáře ────────────────────────────────────────────────────
+        if comments_queue:
+            self.comments_module.scrape_for_queue(
+                comments_queue, limit=comments_limit,
+                progress_cb=lambda c, t: self._report("comments", c, t)
+            )
+        else:
+            print("[X-SCRAPER] Žádné příspěvky ke zpracování komentářů.")
+            self._report("comments", 0, 0)
+
+        # ── Síť ──────────────────────────────────────────────────────────
+        if followers_limit > 0:
+            self.network_module.scrape_followers(
+                actual_username, limit=followers_limit,
+                progress_cb=lambda c, t: self._report("followers", c, t)
+            )
+
+        if following_limit > 0:
+            self.network_module.scrape_following(
+                actual_username, limit=following_limit,
+                progress_cb=lambda c, t: self._report("following", c, t)
+            )
+
+        print("\n[X-SCRAPER] Hotovo.")
+
+    def scrape_trending(self):
+        print("[X-SCRAPER] Těžba trendů...")
+        try:
+            self.bot.page.goto("https://x.com/explore/tabs/trending",
+                               wait_until="domcontentloaded", timeout=30000)
+        except PlaywrightTimeoutError:
+            print("[X-SCRAPER] Varování: Timeout při načítání stránky trendů.")
+
+        trends_locator = self.bot.page.locator('[data-testid="trend"]')
+        try:
+            trends_locator.first.wait_for(state="visible", timeout=6000)
+        except PlaywrightTimeoutError:
+            print("[X-SCRAPER] Trendy se nenačetly.")
+            return
+            
+        trends = trends_locator.all()
+        print(f"[X-SCRAPER] Nalezeno {len(trends)} trendů.")
+        
+        for index, trend in enumerate(trends):
+            try:
+                text_content = trend.inner_text()
+                if not text_content: continue
+                text  = text_content.split('\n')
+                topic = text[1] if len(text) > 1 else text[0]
+                count = text[-1] if "posts" in text[-1] else "N/A"
+                self.db.upsert_trend("X", index+1, "General", topic, count)
+                print(f"  -> #{index+1} {topic}")
+            except Exception:
+                pass
+</file>
+
+<file path="social_bot/src/bots/youtube/bot.py">
 from src.core.base_bot import BaseBot
 from .scraper import YouTubeScraper
 
@@ -2886,10 +4056,9 @@ class YouTubeBot(BaseBot):
         # Přepíšeme metodu login, aby nepadala chyba, ale jen bot oznámil přeskočení
         print("[YT] Přihlašování přeskočeno (veřejná data).")
         pass
-```
+</file>
 
-## Soubor: social_bot\src\bots\youtube\scraper.py
-```py
+<file path="social_bot/src/bots/youtube/scraper.py">
 from src.utils.human_input import delay
 from src.core.database import DatabaseManager
 import re
@@ -3199,10 +4368,9 @@ class YouTubeScraper:
             delay(1.5, 3)
 
         print(f"  -> [YT-SCRAPER] Dokončeno. Uloženo {comments_collected} komentářů.")
-```
+</file>
 
-## Soubor: social_bot\src\core\base_bot.py
-```py
+<file path="social_bot/src/core/base_bot.py">
 import os
 from pathlib import Path
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
@@ -3353,10 +4521,9 @@ class BaseBot:
             print("[BOT] Uloženo.")
         except Exception:
             pass
-```
+</file>
 
-## Soubor: social_bot\src\core\database.py
-```py
+<file path="social_bot/src/core/database.py">
 import sqlite3
 import os
 import uuid
@@ -3651,10 +4818,9 @@ class DatabaseManager:
         if self.conn:
             self.cursor.close()
             self.conn.close()
-```
+</file>
 
-## Soubor: social_bot\src\core\session_logger.py
-```py
+<file path="social_bot/src/core/session_logger.py">
 # src/core/session_logger.py
 """
 SessionLogger — zaznamenává statistiky každého běhu scrapingu do SQLite.
@@ -3931,11 +5097,9 @@ class SessionLogger:
             self._conn.close()
         except Exception:
             pass
+</file>
 
-```
-
-## Soubor: social_bot\src\core\watchlist_scheduler.py
-```py
+<file path="social_bot/src/core/watchlist_scheduler.py">
 """
 src/core/watchlist_scheduler.py
 
@@ -4061,10 +5225,9 @@ class WatchlistScheduler:
         print(msg)
         if self.on_status_change:
             self.on_status_change(msg)
-```
+</file>
 
-## Soubor: social_bot\src\gui\app.py
-```py
+<file path="social_bot/src/gui/app.py">
 # src/gui/app.py
 import tkinter as tk
 from tkinter import messagebox
@@ -4636,10 +5799,9 @@ class App(ctk.CTk):
 if __name__ == "__main__":
     app = App()
     app.mainloop()
-```
+</file>
 
-## Soubor: social_bot\src\gui\browser_preview.py
-```py
+<file path="social_bot/src/gui/browser_preview.py">
 # src/gui/browser_preview.py
 
 import base64
@@ -4790,10 +5952,9 @@ class CDPScreencast:
             pass
         if self.on_stop:
             self.on_stop()
-```
+</file>
 
-## Soubor: social_bot\src\gui\db_viewer.py
-```py
+<file path="social_bot/src/gui/db_viewer.py">
 import customtkinter as ctk
 from tkinter import ttk
 import sqlite3
@@ -4893,107 +6054,13 @@ class DatabaseViewer(ctk.CTkToplevel):
             conn.close()
         except Exception as e:
             print(f"Chyba při načítání databáze: {e}")
-```
+</file>
 
-## Soubor: social_bot\src\gui\theme.py
-```py
-# src/gui/theme.py
+<file path="social_bot/src/gui/frames/__init__.py">
 
-# --- BITWARDEN THEME PALETTE (Dark Mode) ---
-COLORS = {
-    "sidebar_bg": "#171b1e",
-    "main_bg": "#222529",
-    "panel_bg": "#2c3035",
-    "primary": "#175DDC",
-    "primary_hover": "#144eb8",
-    "text_main": "#ffffff",
-    "text_dim": "#9eaab5",
-    "border": "#3b4047",
-    "danger": "#ab1818",
-    "success": "#2eb85c",
-    "verified": "#1DA1F2"
-}
-```
+</file>
 
-## Soubor: social_bot\src\gui\utils.py
-```py
-# src/gui/utils.py
-import tkinter as tk
-import customtkinter as ctk
-import requests
-from io import BytesIO
-from PIL import Image
-from datetime import datetime
-
-class PrintLogger:
-    def __init__(self, textbox, tk_app):
-        self.textbox = textbox
-        self.tk_app = tk_app
-
-    def write(self, text):
-        self.tk_app.after(0, self._insert_text, text)
-
-    def _insert_text(self, text):
-        if not self.textbox: return # Pojistka
-        
-        self.textbox.configure(state="normal")
-        if text.strip():
-            current_time = datetime.now().strftime("[%H:%M:%S]")
-            self.textbox.insert(tk.END, f"{current_time} {text}")
-        else:
-            self.textbox.insert(tk.END, text)
-            
-        self.textbox.see(tk.END)
-        self.textbox.configure(state="disabled")
-
-    def flush(self):
-        pass
-
-class AsyncImageLoader:
-    def __init__(self):
-        self.image_cache = {}
-
-    def load_image(self, url, label_widget, size=(80, 80)):
-        if not url: return
-        
-        # Pokud je v cache, použijeme ho rovnou
-        if url in self.image_cache:
-            self._update_label(label_widget, self.image_cache[url])
-            return
-
-        # Jinak stáhneme (toto by se mělo volat v threadu z GUI)
-        try:
-            response = requests.get(url, timeout=3)
-            if response.status_code == 200:
-                img_data = BytesIO(response.content)
-                pil_img = Image.open(img_data)
-                
-                # Center Crop
-                width, height = pil_img.size
-                if width != height:
-                    new_size = min(width, height)
-                    left = (width - new_size) / 2
-                    top = (height - new_size) / 2
-                    right = (width + new_size) / 2
-                    bottom = (height + new_size) / 2
-                    pil_img = pil_img.crop((left, top, right, bottom))
-                
-                pil_img = pil_img.resize(size, Image.Resampling.LANCZOS)
-                ctk_image = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=size)
-                
-                self.image_cache[url] = ctk_image
-                self._update_label(label_widget, ctk_image)
-        except Exception:
-            pass
-
-    def _update_label(self, label, image):
-        try:
-            label.configure(image=image, text="", fg_color="transparent")
-        except: pass
-```
-
-## Soubor: social_bot\src\gui\frames\analysis.py
-```py
+<file path="social_bot/src/gui/frames/analysis.py">
 # src/gui/frames/analysis.py
 """
 Záložka "Analýza" v hlavním okně aplikace.
@@ -5405,10 +6472,9 @@ class AnalysisFrame(ctk.CTkFrame):
 
         except Exception as e:
             print(f"[ANALYSIS GUI ERROR] {e}")
-```
+</file>
 
-## Soubor: social_bot\src\gui\frames\dashboard.py
-```py
+<file path="social_bot/src/gui/frames/dashboard.py">
 # src/gui/frames/dashboard.py
 import customtkinter as ctk
 from src.gui.theme import COLORS
@@ -5680,10 +6746,9 @@ class DashboardFrame(ctk.CTkFrame):
             users = list(self.controller.users_map.keys())
             self.user_combo.configure(values=users)
             self.user_combo.set(users[0])
-```
+</file>
 
-## Soubor: social_bot\src\gui\frames\database.py
-```py
+<file path="social_bot/src/gui/frames/database.py">
 import customtkinter as ctk
 from tkinter import ttk
 import sqlite3
@@ -5795,10 +6860,9 @@ class DatabaseFrame(ctk.CTkFrame):
             conn.close()
         except Exception as e:
             print(f"[DB ERROR] {e}")
-```
+</file>
 
-## Soubor: social_bot\src\gui\frames\metrics.py
-```py
+<file path="social_bot/src/gui/frames/metrics.py">
 # src/gui/frames/metrics.py
 """
 Metriky aplikace — síťový provoz POUZE bota (přes Playwright response listener),
@@ -6164,10 +7228,9 @@ class MetricsFrame(ctk.CTkFrame):
             self.after_cancel(self._poll_id)
         self.traffic.detach()
         super().destroy()
-```
+</file>
 
-## Soubor: social_bot\src\gui\frames\profiles.py
-```py
+<file path="social_bot/src/gui/frames/profiles.py">
 # src/gui/frames/profiles.py
 import customtkinter as ctk
 import threading
@@ -6791,10 +7854,9 @@ def _rounded_rect_right(canvas, x0, y0, x1, y1, r, color):
     canvas.create_arc(x1-2*r, y1-2*r, x1, y1, start=270, extent=90,  fill=color, outline="")
     canvas.create_rectangle(x0, y0, x1-r, y1,     fill=color, outline="")
     canvas.create_rectangle(x1-r, y0+r, x1, y1-r, fill=color, outline="")
-```
+</file>
 
-## Soubor: social_bot\src\gui\frames\sessions.py
-```py
+<file path="social_bot/src/gui/frames/sessions.py">
 # src/gui/frames/sessions.py
 """
 SessionsFrame — přehled a porovnání jednotlivých běhů scrapingu.
@@ -7271,11 +8333,9 @@ class SessionsFrame(ctk.CTkFrame):
         setattr(self, f"_sort_rev_{col}",
                 not getattr(self, f"_sort_rev_{col}", False))
         self._populate_tree()
+</file>
 
-```
-
-## Soubor: social_bot\src\gui\frames\watchlist.py
-```py
+<file path="social_bot/src/gui/frames/watchlist.py">
 """
 src/gui/frames/watchlist.py
 """
@@ -7562,10 +8622,127 @@ class WatchlistFrame(ctk.CTkFrame):
     def _tick(self):
         self._update_status()
         self.after(5000, self._tick)  # refresh statusu každých 5s
-```
+</file>
 
-## Soubor: social_bot\src\utils\human_input.py
-```py
+<file path="social_bot/src/gui/ogma_ai_logo.svg">
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Outer circle -->
+  <circle cx="256" cy="256" r="220" stroke="black" stroke-width="16" fill="none"/>
+
+  <!-- Eye shape -->
+  <ellipse cx="256" cy="256" rx="120" ry="60" fill="none" stroke="black" stroke-width="10"/>
+
+  <!-- Pupil / core -->
+  <circle cx="256" cy="256" r="22" fill="black"/>
+
+  <!-- Central ogham line -->
+  <line x1="256" y1="120" x2="256" y2="392" stroke="black" stroke-width="10"/>
+
+  <!-- Ogham side strokes -->
+  <line x1="256" y1="180" x2="290" y2="180" stroke="black" stroke-width="8"/>
+  <line x1="256" y1="210" x2="290" y2="210" stroke="black" stroke-width="8"/>
+  <line x1="256" y1="300" x2="222" y2="300" stroke="black" stroke-width="8"/>
+  <line x1="256" y1="330" x2="222" y2="330" stroke="black" stroke-width="8"/>
+
+</svg>
+</file>
+
+<file path="social_bot/src/gui/theme.py">
+# src/gui/theme.py
+
+# --- BITWARDEN THEME PALETTE (Dark Mode) ---
+COLORS = {
+    "sidebar_bg": "#171b1e",
+    "main_bg": "#222529",
+    "panel_bg": "#2c3035",
+    "primary": "#175DDC",
+    "primary_hover": "#144eb8",
+    "text_main": "#ffffff",
+    "text_dim": "#9eaab5",
+    "border": "#3b4047",
+    "danger": "#ab1818",
+    "success": "#2eb85c",
+    "verified": "#1DA1F2"
+}
+</file>
+
+<file path="social_bot/src/gui/utils.py">
+# src/gui/utils.py
+import tkinter as tk
+import customtkinter as ctk
+import requests
+from io import BytesIO
+from PIL import Image
+from datetime import datetime
+
+class PrintLogger:
+    def __init__(self, textbox, tk_app):
+        self.textbox = textbox
+        self.tk_app = tk_app
+
+    def write(self, text):
+        self.tk_app.after(0, self._insert_text, text)
+
+    def _insert_text(self, text):
+        if not self.textbox: return # Pojistka
+        
+        self.textbox.configure(state="normal")
+        if text.strip():
+            current_time = datetime.now().strftime("[%H:%M:%S]")
+            self.textbox.insert(tk.END, f"{current_time} {text}")
+        else:
+            self.textbox.insert(tk.END, text)
+            
+        self.textbox.see(tk.END)
+        self.textbox.configure(state="disabled")
+
+    def flush(self):
+        pass
+
+class AsyncImageLoader:
+    def __init__(self):
+        self.image_cache = {}
+
+    def load_image(self, url, label_widget, size=(80, 80)):
+        if not url: return
+        
+        # Pokud je v cache, použijeme ho rovnou
+        if url in self.image_cache:
+            self._update_label(label_widget, self.image_cache[url])
+            return
+
+        # Jinak stáhneme (toto by se mělo volat v threadu z GUI)
+        try:
+            response = requests.get(url, timeout=3)
+            if response.status_code == 200:
+                img_data = BytesIO(response.content)
+                pil_img = Image.open(img_data)
+                
+                # Center Crop
+                width, height = pil_img.size
+                if width != height:
+                    new_size = min(width, height)
+                    left = (width - new_size) / 2
+                    top = (height - new_size) / 2
+                    right = (width + new_size) / 2
+                    bottom = (height + new_size) / 2
+                    pil_img = pil_img.crop((left, top, right, bottom))
+                
+                pil_img = pil_img.resize(size, Image.Resampling.LANCZOS)
+                ctk_image = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=size)
+                
+                self.image_cache[url] = ctk_image
+                self._update_label(label_widget, ctk_image)
+        except Exception:
+            pass
+
+    def _update_label(self, label, image):
+        try:
+            label.configure(image=image, text="", fg_color="transparent")
+        except: pass
+</file>
+
+<file path="social_bot/src/utils/human_input.py">
 import time
 import random
 
@@ -7616,5 +8793,48 @@ def random_mouse_movement(page=None):
             
     except Exception:
         pass
-```
+</file>
 
+<file path="social_bot/test_profile.py">
+from src.core.base_bot import BaseBot
+import time
+import os
+
+# Jednoduchý test, zda se vytvoří profil
+print("--- TEST ZAČÍNÁ ---")
+
+# Inicializace bota (použije ID "test_user")
+try:
+    bot = BaseBot(headless=False, user_id="test_user")
+    
+    print("Otevírám Google...")
+    bot.page.get("https://www.google.com")
+    
+    print("Čekám 5 sekund (nyní zkontroluj složku profiles/test_user)...")
+    time.sleep(5)
+    
+    print("Zavírám bota...")
+    bot.close()
+    print("--- TEST DOKONČEN ---")
+    
+    # Kontrola
+    profile_dir = os.path.join(os.getcwd(), 'profiles', 'test_user')
+    if os.path.exists(profile_dir) and len(os.listdir(profile_dir)) > 0:
+        print(f"✅ ÚSPĚCH! Složka profilu není prázdná: {profile_dir}")
+        print(f"Počet souborů/složek: {len(os.listdir(profile_dir))}")
+    else:
+        print(f"❌ CHYBA! Složka profilu je stále prázdná: {profile_dir}")
+
+except Exception as e:
+    print(f"CRITICAL ERROR: {e}")
+</file>
+
+<file path="top50.txt">
+Elon Musk, Barack Obama, Donald Trump, Narendra Modi, Cristiano Ronaldo, Rihanna, Justin Bieber, NASA, Katy Perry, Taylor Swift, Lady Gaga, Kim Kardashian, YouTube, Virat Kohli, Ellen DeGeneres, Bill Gates, CNN, X (formerly Twitter), CNN Breaking News, Neymar, Selena Gomez, PMO India, ESPN, The New York Times, UEFA Champions League, BBC Breaking News, Real Madrid CF, Justin Timberlake, LeBron James, BTS, FC Barcelona, NBA, Shakira, Amitabh Bachchan, Premier League, BTS, Akshay Kumar, Jimmy Fallon, Demi Lovato, Britney Spears, PlayStation, Salman Khan, BBC World News, SportsCenter, Miley Cyrus, SpaceX, Shah Rukh Khan, Sachin Tendulkar, Joe Biden, Manchester United F.C.
+</file>
+
+<file path="topCZ.txt">
+CT24zive, SeznamZpravy, DenikN, iROZHLAScz, general_pavel, Petr_Fiala, AndrejBabis, MiroslavKalousek, FilipHorky, DarinaVymetalikova, JindrichSidlo, TaberyErik, RScholtzova, MartinVeselovsky, JakubZelezny, LukasValenta, Vit_Rakusan, Market_a, IvanBartos, AlenaSchillerov, KarelHavlicek_, TomasCzernin, JanaCernochova, DanaDrabova, Lupa_cz, zivecz, CzechCrunch, ForbesCesko, petrmara, Kicom, PatrickZandl, cermak, michal_skop, HlidasStatu, Jie_Jie, TMBKOFFICIAL, paralelnilisty, PosledniSkaut, AndrejPolechtch, LazikJulian, armadaCR, PoliciecZ, HZS_ScK, UID_CZ, NUKIB_CZ, BIS_cz, LukasKovanda, David_Navratil, danielmunich, RadekSpicar_SP, TomasPojar, AlexandrMitrofa, JiriPehe, ErikBest, HonzaTuna, cestmirat, DVTVcz, Respekt_CZ, Reflex_cz, ECHO24cz, blisty, A2larm, Voxpot, neurazitelny, vedator_sk, CT_Veda, HydeParkCiviliz, CTsport, hokejcz, ceskarepre_cz, PetraKvitova, KarolinaPliskova, EsterLedecka, TomasSatoransky, pasta88, tenkratvpraze, prazskaintegro, PIDoficialni, Tramvajak_Praha, Milda_J, petr_ludwig, JanekRubes, HonzaMikulka, KluciZPrahy, sterakdary, Agraelus, Herdyn, fattypillow, Kazma_Kazmitch, LeosMares, BenCristovao, Dararolins, UdalostiBrno, BrnoMyCity, data_cz, demagogcz, manipulatori, Ostrava_City, PrahaEU
+</file>
+
+</files>

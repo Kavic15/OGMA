@@ -56,13 +56,27 @@ class SentimentAnalyzer:
         try:
             with open(LEXICON_PATH, "r", encoding="utf-8") as f:
                 data = json.load(f)
+
+            skipped = 0
             for category, entries in data.items():
-                if category.startswith("_comment"):
+                # Přeskočit komentáře (klíče začínající _comment nebo _)
+                if category.startswith("_"):
                     continue
-                if isinstance(entries, dict):
-                    for phrase, score in entries.items():
+                if not isinstance(entries, dict):
+                    continue
+                for phrase, score in entries.items():
+                    # Přeskočit jakoukoliv hodnotu, která není číslo
+                    try:
                         flat[phrase.lower().strip()] = float(score)
+                    except (ValueError, TypeError):
+                        skipped += 1
+
+            if skipped:
+                print(f"[SENTIMENT] Varování: Přeskočeno {skipped} nečíselných hodnot ve slovníku.")
             print(f"[SENTIMENT] Slovník načten: {len(flat)} výrazů.")
+
+        except json.JSONDecodeError as e:
+            print(f"[SENTIMENT ERROR] Slovník má neplatný JSON formát: {e}")
         except Exception as e:
             print(f"[SENTIMENT ERROR] Načtení slovníku selhalo: {e}")
         return flat
@@ -90,66 +104,25 @@ class SentimentAnalyzer:
     # PREPROCESSING
     # ------------------------------------------------------------------
     def _split_hashtag(self, tag: str) -> str:
-        """
-        Rozloží hashtag na čitelná slova.
-        #FreeIran       → free iran
-        #r2pforiran     → r2p for iran   (heuristika: vloží mezeru před známé předložky)
-        #MAGA           → maga
-        #NoDeal         → no deal        (camelCase split)
-        """
-        # Odstranění # a lowercase
         tag = tag.lstrip("#")
-
-        # CamelCase split: vloží mezeru před každé velké písmeno uvnitř slova
         tag = re.sub(r'(?<=[a-z])(?=[A-Z])', ' ', tag)
         tag = re.sub(r'(?<=[A-Z])(?=[A-Z][a-z])', ' ', tag)
-
-        # Čísla oddělená od písmen: r2p → r 2 p (volitelné, pomáhá u zkratek)
         tag = re.sub(r'(?<=\D)(?=\d)|(?<=\d)(?=\D)', ' ', tag)
-
         return tag.lower().strip()
 
     def _emojis_to_text(self, text: str) -> str:
-        """
-        Převede emoji na jejich anglický textový popis pomocí knihovny emoji.
-        Např. 🆘 → ':SOS_button:' → 'SOS button'
-              ❤️ → ':red_heart:'  → 'red heart'
-              🙏 → ':folded_hands:' → 'folded hands'
-        """
-        # demojize vrátí :název_emoji: formát
         demojized = emoji.demojize(text, delimiters=(" :", ": "))
-        # Odstraníme dvojtečky a podtržítka → čitelná slova
         demojized = re.sub(r':([^:]+):', lambda m: m.group(1).replace('_', ' '), demojized)
         return demojized
 
     def preprocess(self, text: str) -> str:
-        """
-        Kompletní preprocessing textu před analýzou.
-        Pořadí kroků:
-          1. Emoji → textový popis
-          2. URL odstranit (nenesou sentiment)
-          3. @mentions odstranit
-          4. Hashtagy rozložit na slova
-          5. Normalizace bílých znaků
-        """
         if not text:
             return ""
-
-        # 1. Emoji → text
         text = self._emojis_to_text(text)
-
-        # 2. URL
         text = re.sub(r'https?://\S+|www\.\S+', '', text)
-
-        # 3. @mentions
         text = re.sub(r'@\w+', '', text)
-
-        # 4. Hashtagy — rozložit každý #tag na slova
         text = re.sub(r'#\w+', lambda m: ' ' + self._split_hashtag(m.group(0)) + ' ', text)
-
-        # 5. Normalizace
         text = re.sub(r'\s+', ' ', text).strip()
-
         return text
 
     # ------------------------------------------------------------------
@@ -178,7 +151,6 @@ class SentimentAnalyzer:
     # Detekce jazyka
     # ------------------------------------------------------------------
     def _detect_language(self, text: str) -> str:
-        # Po preprocessingu může být text kratší — kontrola délky
         clean = re.sub(r'[^\w\s]', '', text, flags=re.UNICODE).strip()
         if len(clean) < 4:
             return "unknown"
@@ -211,26 +183,17 @@ class SentimentAnalyzer:
     # Hlavní metoda — analýza jednoho textu
     # ------------------------------------------------------------------
     def analyze_text(self, text: str) -> tuple[float, str, str]:
-        """
-        Vrátí (compound_score, label, detected_lang).
-
-        Pipeline:
-          preprocess → lexicon_score → překlad → vader → kombinace
-        """
+        """Vrátí (compound_score, label, detected_lang)."""
         if not text or text.strip() in PLACEHOLDERS:
             return 0.0, "neutral", "unknown"
 
-        # Preprocessing (emoji, hashtagy, URL, mentions)
         processed = self.preprocess(text)
 
-        # Pokud po preprocessingu nezbylo nic smysluplného
         if not processed or len(processed.strip()) < 2:
             return 0.0, "neutral", "unknown"
 
-        # Vrstva 1 — slovník (pracuje s předzpracovaným textem)
         lex_score = self._lexicon_score(processed)
 
-        # Vrstva 2 — VADER
         lang = self._detect_language(processed)
         text_for_vader = (
             self._translate_to_en(processed, lang)
@@ -239,7 +202,6 @@ class SentimentAnalyzer:
         )
         vader_score = self.vader.polarity_scores(text_for_vader)["compound"]
 
-        # Kombinace
         if lex_score is not None:
             final_score = (lex_score * LEXICON_WEIGHT) + (vader_score * VADER_WEIGHT)
         else:

@@ -1,0 +1,20 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Outer circle -->
+  <circle cx="256" cy="256" r="220" stroke="black" stroke-width="16" fill="none"/>
+
+  <!-- Eye shape -->
+  <ellipse cx="256" cy="256" rx="120" ry="60" fill="none" stroke="black" stroke-width="10"/>
+
+  <!-- Pupil / core -->
+  <circle cx="256" cy="256" r="22" fill="black"/>
+
+  <!-- Central ogham line -->
+  <line x1="256" y1="120" x2="256" y2="392" stroke="black" stroke-width="10"/>
+
+  <!-- Ogham side strokes -->
+  <line x1="256" y1="180" x2="290" y2="180" stroke="black" stroke-width="8"/>
+  <line x1="256" y1="210" x2="290" y2="210" stroke="black" stroke-width="8"/>
+  <line x1="256" y1="300" x2="222" y2="300" stroke="black" stroke-width="8"/>
+  <line x1="256" y1="330" x2="222" y2="330" stroke="black" stroke-width="8"/>
+
+</svg>

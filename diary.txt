@@ -1,0 +1,205 @@
+#TODO: Vizualizace dat (Activity Heatmap, Síťový graf, Sentiment v čase), Export dat (CSV/XLSX/PDF), Technické flagy (Meme Warfare, New Account, High Impact, Bot Suspect), Odvozená analytika (Hashtagy, Mentions, Word Cloud)
+
+10.2.2026
+--------------------------------------------------------------------------------
+MIGRACE NA DRISSIONPAGE & SESSION PERSISTENCE
+
+1. Přechod ze Selenium na DrissionPage:
+   - Selenium bylo detekováno Xkem (Login loop/Unusual activity).
+   - DrissionPage ovládá prohlížeč přímo přes protokol CDP, což je mnohem hůře detekovatelné.
+
+2. Implementace Portable Browseru:
+   - Staženo "Ungoogled Chromium" (Portable verze).
+   - Umístěno do `social_bot/browser/chrome.exe`.
+   - Důvod: Úplná izolace od systémových prohlížečů (Edge/Brave) a prevence synchronizace s mým osobním účtem.
+
+3. Session Persistence (Ukládání přihlášení):
+   - Bot si nyní pamatuje cookies a neodhlašuje se po vypnutí.
+   - Cesta k profilům: `social_bot/profiles/{ID}`.
+   - Oprava chyby DrissionPage: Bylo nutné vypnout `auto_port()` a nastavit pevný port (9333), jinak DrissionPage ignoroval naši složku a vytvářel dočasné profily v %TEMP%.
+
+4. Vyřešení problémů s cestou (OneDrive):
+   - Problém: OneDrive zamykal soubory profilu a Chromium nedokázalo číst cestu s mezerami a diakritikou ("Programování (moje)").
+   - Řešení: Přesun celého projektu z Plochy přímo do rootu disku (`C:\Ogma`).
+
+5. Ríša doporučuje CamouFox pro randomizaci fingerprintů
+
+STAV: Funkční login (X), cookies se ukládají, bot přežije restart aplikace.
+
+11.2.2026
+--------------------------------------------------------------------------------
+ROZŠÍŘENÍ OSINT BOTŮ (X & IG) A INTEGRACE DATABÁZE DO GUI
+
+1. Architektura GUI a Command Center:
+   - Zavedeno zobrazení SQLite databáze přímo do aplikace pomocí záložek (Tabs) a knihovny Treeview.
+   - Vyřešena automatická správa oken: Aplikace se nyní spolehlivě otevírá na sekundárním monitoru a maximalizuje se.
+   - Zdolán problém s vykreslovacím enginem CustomTkinteru (který rušil maximalizaci okna) přidáním zpoždění (after delay) před voláním state('zoomed').
+
+2. Vylepšení Databáze (SQLite):
+   - Migrace primárních klíčů z inkrementálních INTEGER na UUID pro lepší budoucí škálovatelnost a propojování dat.
+   - Přidány nové tabulky comments a trending.
+   - Přidány sloupce platform (pro snadnější filtraci) a media_url.
+   - Zavedeny automatické migrace schématu a rutiny pro promazávání vadných dat z testování.
+
+3. X Scraper (Twitter):
+   - Opraveno vyhledávání: Bot již nehledá přesnou textovou shodu (která selhávala u rozdílů mezi Display Name a Handle), ale kliká na první relevantní výsledek (UserCell).
+   - Implementována těžba Top 50 komentářů pod příspěvky.
+   - Řešení "Meme Warfare": Pokud uživatel odpoví pouze obrázkem/videem bez textu, bot to rozezná, uloží URL média a text nahradí štítkem [OBSAHUJE FOTKU/VIDEO].
+   - Přidána těžba Trendů s robustním očištěním textového balastu (odstranění stringů jako "Trending in Czechia" nebo oddělovacích teček).
+
+4. Instagram Scraper (Největší technické výzvy):
+   - Vyhledávání: Obfuskace kódu a paměť vyhledávání IG znemožnily klasické DOM vyhledávání. Vyřešeno čtením odkazů shora dolů a kliknutím na první profil, který obsahuje profilový obrázek (vyloučení textového menu a vlastního účtu).
+   - Lazy Loading: Implementováno scrollování a explicitní čekání na vykreslení mřížky fotek (Grid), aby bot nehlásil prázdné profily.
+   - Těžba komentářů (Modal window): Klasický XPath selhal, protože IG v okně s komentáři odstranil tagy <ul>/<li> a standardní scroll posouval pozadí.
+   - Řešení: Nasazena přímá JavaScriptová injekce (run_js). 
+     a) Extrakční skript: Hledá stabilní elementy <time>, stoupá v DOMu nahoru pro zachycení celého bloku a čistí text od UI tlačítek.
+     b) Scroll skript: Identifikuje izolované divy s vlastností overflowY: scroll/auto a rotuje jimi nezávisle na hlavní stránce.
+   - Chybějící ID komentářů vyřešeno generováním kompozitních klíčů (PostID_Author_Timestamp).
+
+STAV: Aplikace funguje jako Command Center. X bot těží profily, komentáře i trendy. IG bot dokáže překonat Lazy Loading a pomocí JS injekcí těžit data z modálních oken.
+
+17.2.2026
+--------------------------------------------------------------------------------
+REDESIGN GUI (BITWARDEN STYLE) A OPTIMALIZACE X SCRAPERA
+
+1. Nové GUI a Vizualizace dat:
+   - Kompletní přepis `app.py`: Přechod z horních záložek na levý Sidebar (inspirováno aplikací Bitwarden).
+   - Nová sekce "Scrapnuté Profily": Data vizualizována formou karet s profilovkou, biem a statistikami (místo pouhé tabulky).
+   - Implementován asynchronní loader obrázků s cacheováním a "Center-Crop" ořezem, aby se fotky ve widgetech nedeformovaly.
+   - Přidán Progress Bar a detailní status log pro sledování průběhu hromadných operací.
+
+2. Pokročilá logika X Scrapera (Zrychlení a Stabilita):
+   - Hromadný sběr (Batch Scraping): Pole pro cíl nyní přijímá seznam jmen oddělený čárkami (např. "elonmusk, nasa, ...").
+   - Třístupňové vyhledávání cíle (konec hádání URL):
+     1. Cache (DB): Pokud známe handle z minula, jdeme přímo.
+     2. X Search: Interní vyhledávání přes záložku Explore -> People.
+     3. Google Fallback: Pokud X selže, bot hledá přes Google ("Jmeno twitter") a kliká na první výsledek.
+   - Optimalizace komentářů: Přechod na "snapshot" metodu – bot načte všechny viditelné komentáře naráz a rychleji scrolluje, místo čekání na každý element zvlášť.
+
+3. Řešení Profilových Fotek (High-Res):
+   - Problém: X v DOMu často poskytuje jen náhledy (`_bigger`, 73x73px), které se externě nenačítají.
+   - Řešení: Implementována inteligentní detekce. Pokud bot vidí URL s nízkou kvalitou, fyzicky klikne na fotku, otevře modální okno (Media Viewer), extrahuje originál (`400x400`+) a okno zavře.
+   - Přidána podpora pro čtvercové avatary (firemní účty se zlatou fajfkou).
+
+4. Databáze:
+   - Automatická migrace: Do tabulky `users` přidán sloupec `profile_pic_url`.
+
+18.2.2026
+--------------------------------------------------------------------------------
+MODULARIZACE ARCHITEKTURY, ROZŠÍŘENÁ METADATA A VIDEO SNIFFING
+
+1. Rozsáhlý Refactoring (Modularizace):
+   - Provedena kompletní restrukturalizace kódu pro zvýšení přehlednosti a udržitelnosti.
+   - GUI (app.py): Monolit rozdělen na hlavní kontroler a samostatné komponenty ve složce `src/gui/frames/` (Dashboard, Profiles, Database).
+   - X Scraper: Rozdělen na specializované moduly v `src/bots/x/modules/` (Search, Profile, Posts, Comments).
+   - Utils & Theme: Izolace barevných palet a pomocných tříd (Logger, AsyncImageLoader).
+
+2. Rozšířená OSINT Metadata (X):
+   - Scraper a Databáze rozšířeny o sběr detailních informací o cíli.
+   - Nově těžená data: Datum registrace (Joined Date), Lokace, Webová stránka, Počet sledovaných (Following), Banner URL a Status ověření (Verified).
+   - Implementována automatická migrace DB schématu (`_migrate_db`) pro přidání nových sloupců za chodu.
+
+3. Pokročilá práce s médii a komentáři:
+   - Video Sniffing (Fáze 2): Implementována experimentální logika pro záchyt `.m3u8` streamů pomocí odposlechu síťové komunikace (`page.listen`), což obchází absenci přímých odkazů v DOMu.
+   - Komentáře (Fáze 3): Opravena integrace těžby komentářů. Bot nyní automaticky vytěží komentáře pro všechny příspěvky nalezené v timeline.
+
+4. UX Vylepšení:
+   - Logování: Do konzole v GUI přidána časová razítka pro lepší debugging a měření latence operací.
+   - GUI: Karty profilů aktualizovány pro zobrazení nových metadat (ikony, status ověření).
+
+19.2.2026
+--------------------------------------------------------------------------------
+KOMPLETNÍ MIGRACE NA PLAYWRIGHT A STABILIZACE SCRAPERŮ
+
+1. Architektonická změna (DrissionPage -> Playwright):
+   - Kompletní přepis vrstvy webové automatizace na synchronní Playwright.
+   - Odstraněna nespolehlivá knihovna playwright-stealth, nahrazena nativní injekcí skriptů pro skrytí webdriveru a podvržení metadat (plugins, languages).
+   - Správa prohlížeče plně přesunuta do pracovních vláken, čímž byl vyřešen kritický pád (greenlet.error) při manuálním ukončení bota z GUI.
+
+2. Masivní vylepšení X (Twitter) Scraperu:
+   - Video Sniffing: Původní čekání na .m3u8 přesunuto na pokročilé odchytávání GraphQL odpovědí (page.on("response")). Nyní bot získává čisté přímé .mp4 adresy ze serverů X.
+   - Detekce médií: Opravena chyba, kdy X maskuje načítající se videa jako fotky. Přidána kontrola URL na "video_thumb".
+   - Komentáře: Zavedena dodatečná Fáze 4 pro stahování .mp4 videí i z vláken komentářů.
+
+3. Komplexní oprava Instagram Scraperu:
+   - Čísla a lokalizace: Napsán robustní parser pro česká čísla, který si poradí s textem "tis." i se zrádnými nedělitelnými mezerami (\xa0).
+   - Média a Kolotoče (Carousels): Scraper nyní dokáže "proklikat" kolotoč fotek a uložit všechny adresy oddělené středníkem. Zavedeno striktní pravidlo (ignorování tagu <a>), které úspěšně zamezuje stahování fotek z cizích příspěvků v doporučené mřížce.
+   - Extrakce metadat: Kompletní přepis těžby profilu do komplexní JavaScriptové injekce. Bot přesně čte jméno, bio, verifikaci, followers/following a odkaz na web přímo z HTML hlavičky profilu, čímž obchází zmatené zanořování divů na IG.
+   - Oprava komentářů: Zavedeny filtry omezující délku textu pro detekci lajků a odstraňující systémové texty ("Zobrazit všech X odpovědí"), díky čemuž se statistiky ukládají naprosto přesně.
+
+10.3.2026
+--------------------------------------------------------------------------------
+IMPLEMENTACE TĚŽBY SÍTĚ (FOLLOWERS/FOLLOWING) A OPRAVY GUI
+
+1. Uživatelské vstupy a flexibilní limity:
+   - Do ovládacího panelu (Dashboard) přidány dedikované vstupy pro limity: Příspěvky, Komentáře, Sledující a Sleduje.
+   - Hodnoty jsou nyní dynamicky předávány napříč celou architekturou až do jednotlivých modulů scraperu.
+
+2. Těžba Sítě (Network Scraping):
+   - Nově implementováno bezpečné stahování vazeb profilů (omezené vzorky pro ochranu účtů před bany).
+   - IG Scraper: Napsána pokročilá JS injekce, která izoluje scrollování výhradně na vyskakovací modální okno se seznamem uživatelů a parsuje jejich href odkazy.
+   - X Scraper (Twitter): Vytvořen nový modul network.py. Pro spolehlivou extrakci uživatelských jmen (i přes vizuální překážky jako jsou odznaky ověření) nasazen regulární výraz hledající vzor @handle.
+
+3. Databáze a nová vizualizace (Vault):
+   - Vytvořena nová databázová tabulka "connections" evidující vztahy: zdrojový účet -> nalezený uživatel -> typ vazby (follower/following).
+   - Do modulu DatabaseFrame v GUI přidána čtvrtá záložka "Síť (Connections)", která tyto nasbírané vztahy okamžitě zobrazuje formou tabulky.
+
+4. Opravy chyb a stabilizace UI:
+   - Vyřešen problém se zamrznutím X Scraperu u profilů s 0 příspěvky (přidána pojistka počítající iterace bez nového obsahu).
+   - Zpřísněn JS filtr pro extrakci Instagram biografie (nyní spolehlivě odfiltruje systémové texty jako "Sleduji (47)").
+   - Opraveno parsování Instagram UI u profilových karet (odstranění neviditelných znaků a prázdných řádků pomocí split/join a přidáno levé zarovnání textu pro kompaktnější vzhled).
+
+11.3.2026
+--------------------------------------------------------------------------------
+ANALYTICKÁ NADSTAVBA — SENTIMENT, OCR A VIZUALIZACE PROFILŮ
+ 
+1. Architektura analytického modulu:
+   - Vytvořena nová složka `src/analysis/` jako samostatná analytická vrstva oddělená od scrapingu.
+   - Dva nové moduly: `sentiment.py` (sentiment analýza) a `image_ocr.py` (OCR analýza obrázků).
+   - Nová GUI záložka "Analýza" (`src/gui/frames/analysis.py`) jako centrální ovládací panel pro veškerou analytiku.
+ 
+2. Sentiment analýza komentářů (`src/analysis/sentiment.py`):
+   - Implementována třívrstá pipeline: Preprocessing → Kontextový slovník → VADER.
+   - Preprocessing textu před analýzou:
+     a) Emoji → textový popis pomocí knihovny `emoji` (🆘 → "SOS button", ❤️ → "red heart").
+     b) Hashtagy → čitelná slova pomocí CamelCase splitu a heuristik (#FreeIran → "free iran", #NoDeal → "no deal").
+     c) Odstranění URL a @mentions (nenesou sentiment).
+   - Vrstva 1 — Kontextový slovník (`context_lexicon.json`):
+     - ~150 výrazů v 8 kategoriích: politické osobnosti, dezinformační narativy, bot/spam indikátory, válečná terminologie, íránská specifika, pozitivní solidarita, emoji jako text, CZ/SK/ES výrazy.
+     - Víceslovné fráze mají vyšší váhu než jednoslovné ("stolen election" > "rigged").
+     - Sekce `custom` pro přidávání výrazů za běhu přes `add_to_lexicon()`.
+   - Vrstva 2 — VADER: Lexikální analýza přeloženého textu (detekce jazyka přes `langdetect`, překlad přes `deep-translator`).
+   - Finální skóre: vážený průměr (55 % slovník / 45 % VADER), rozsah -1.0 až +1.0.
+   - Automatická DB migrace: Nové sloupce `sentiment_score`, `sentiment_label`, `sentiment_lang` v tabulce `comments`.
+   - Dvě režimy spuštění: automaticky po každém scrape + manuálně přes GUI tlačítko.
+   - Příklad opravy: "EPSTEIN" → slovník -0.7, VADER 0.0, finál -0.385 → negative ✓
+ 
+3. OCR analýza obrázků (`src/analysis/image_ocr.py`):
+   - Tesseract OCR s pytesseract wrapperem.
+   - Preprocessing obrázků pro zlepšení přesnosti: normalizace barevného módu, zvětšení malých obrázků (min 600px), převod na šedou, zvýšení kontrastu (2×), zostření hran.
+   - Podpora více URL v jednom záznamu (Instagram kolotoče, středník jako separátor).
+   - Filtrování video thumbnail URL (video_thumb, ext_tw_video) — ty neobsahují čitelný text.
+   - Čištění OCR výstupu: odstranění artefaktů, řádků s méně než 2 smysluplnými znaky.
+   - Sentiment analýza extrahovaného textu předána do SentimentAnalyzeru.
+   - Sentinel hodnota "" pro zpracované obrázky bez textu (aby se nepřepracovávaly).
+   - Automatická DB migrace: Nové sloupce `media_text`, `media_sentiment_score`, `media_sentiment_label` v tabulkách `posts` i `comments`.
+   - Podporované jazyky OCR: EN, CS, SK, ES (dle dostupných .traineddata souborů).
+ 
+4. Vizualizace sentimentu na kartách profilů (`src/gui/frames/profiles.py`):
+   - Každá karta profilu rozšířena o sentiment panel (zobrazí se pouze pokud jsou analyzovaná data).
+   - Levá část: Průměrné skóre (+0.234 / -0.512) velkým písmem v barvě výsledku + label + počet komentářů.
+   - Pravá část: Stacked bar — horizontální pruhový graf rozdělený na 3 segmenty (pos/neu/neg).
+     - Implementován čistým tkinter Canvas bez externích grafických knihoven.
+     - Krajní segmenty mají zaoblené rohy, střední jsou hranaté — vizuálně splývají v jeden pruh.
+   - Legenda pod barem: barevná tečka + název + procento + absolutní počet pro každý segment.
+ 
+5. GUI záložka Analýza (`src/gui/frames/analysis.py`):
+   - Panel 1 — Sentiment: Tlačítko spuštění + progress bar + počítadlo.
+   - Panel 2 — OCR: Tři tlačítka (Příspěvky / Komentáře / Vše) + progress bar + živé statistiky zpracování.
+   - Výsledková tabulka: Agregované výsledky per uživatel s barevným kódováním řádků + nový sloupec "OCR textů".
+   - Veškeré operace běží v daemon threadech (GUI neblokuje).
+ 
+6. Nové závislosti přidány do requirements.txt:
+   - `vaderSentiment`, `langdetect`, `deep-translator`, `emoji`, `pytesseract`
+ 
+STAV: Plně funkční analytická vrstva. Komentáře i příspěvky mají sentiment skóre, obrázky jsou OCR analyzovány. Profily zobrazují grafické shrnutí sentimentu přímo na kartě.

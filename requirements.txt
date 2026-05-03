@@ -1,21 +1,15 @@
-# Core dependencies
-selenium==4.15.0
-webdriver-manager==4.0.0
-fake-useragent==1.3.0
-requests==2.31.0
-lxml==4.9.3
-
-# Data processing and storage
-pandas==2.1.2
-numpy==1.26.0
-sqlalchemy==2.0.23
-
-# Proxy and network utilities
-python-socks==2.4.0
-urllib3==2.0.7
-
-# Name generation
---extra-index-url https://test.pypi.org/simple/
-czech-name-generator==0.2.1
+DrissionPage
+customtkinter
 keyboard
-# czech_name_generator==0.2.1
+pillow
+requests
+playwright-stealth
+playwright
+vaderSentiment
+langdetect
+deep-translator
+emoji
+pytesseract
+wordcloud
+matplotlib
+psutil
